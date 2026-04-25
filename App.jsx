@@ -1,21 +1,23 @@
-import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import React from "react";
 import { NavigationContainer } from "@react-navigation/native";
-import Friends from "./src/screens/ActivityScreens/Friends";
-import Public from "./src/screens/ActivityScreens/Public";
-import Discover from "./src/screens/DiscoverScreens/Discover";
-import MostPopularComments from "./src/screens/DiscoverScreens/Discover";
-import PublicLists from "./src/screens/DiscoverScreens/Discover";
-import Diary from "./src/screens/ProfileScreens/Diary";
-import Lists from "./src/screens/ProfileScreens/Lists";
-import Profile from "./src/screens/ProfileScreens/Profile";
-import Search from "./src/screens/Search";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import Login from "./src/screens/Login";
 import Signup from "./src/screens/Signup";
 
-import React from "react";
+const Stack = createNativeStackNavigator();
 
 const App = () => {
-  return <div>App</div>;
+  return (
+    <NavigationContainer>
+      <Stack.Navigator
+        initialRouteName="Signup"
+        screenOptions={{ headerShown: false }}
+      >
+        <Stack.Screen name="Signup" component={Signup} />
+        <Stack.Screen name="Login" component={Login} />
+      </Stack.Navigator>
+    </NavigationContainer>
+  );
 };
 
 export default App;
