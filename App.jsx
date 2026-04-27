@@ -1,7 +1,9 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import { onAuthStateChanged } from "firebase/auth";
+import { auth } from "./src/config/firebase";
 
 import Signup from "./src/screens/Signup";
 import Search from "./src/screens/Search";
@@ -69,6 +71,13 @@ const MainTabs = () => (
 
 const App = () => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setIsLoggedIn(!!user);
+    });
+    return unsubscribe;
+  }, []);
 
   return (
     <NavigationContainer>

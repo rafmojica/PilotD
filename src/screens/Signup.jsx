@@ -60,7 +60,9 @@ const Signup = ({ navigation }) => {
     } catch (err) {
       setError(friendlyError(err.code));
       setLoading(false);
+      return;
     }
+    setLoading(false);
   };
 
   return (
