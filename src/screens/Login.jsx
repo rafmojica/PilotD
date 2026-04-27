@@ -1,5 +1,6 @@
 import { useState } from "react";
 import {
+  View,
   Text,
   TextInput,
   TouchableOpacity,
@@ -11,12 +12,14 @@ import {
 } from "react-native";
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from "../config/firebase.js";
+import { useGoogleAuth } from "../hooks/useGoogleAuth";
 
 const Login = ({ navigation }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const { request, loading: googleLoading, error: googleError, signInWithGoogle } = useGoogleAuth();
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -74,6 +77,26 @@ const Login = ({ navigation }) => {
             <Text style={styles.buttonText}>Log In</Text>
           )}
         </TouchableOpacity>
+
+        <View style={styles.dividerRow}>
+          <View style={styles.dividerLine} />
+          <Text style={styles.dividerText}>or</Text>
+          <View style={styles.dividerLine} />
+        </View>
+
+        <TouchableOpacity
+          style={[styles.googleButton, (googleLoading || !request) && styles.buttonDisabled]}
+          onPress={signInWithGoogle}
+          disabled={googleLoading || !request}
+        >
+          {googleLoading ? (
+            <ActivityIndicator color="#000" />
+          ) : (
+            <Text style={styles.googleButtonText}>Continue with Google</Text>
+          )}
+        </TouchableOpacity>
+
+        {googleError ? <Text style={styles.error}>{googleError}</Text> : null}
 
         <TouchableOpacity onPress={() => navigation.navigate("Signup")}>
           <Text style={styles.signupLink}>
@@ -152,6 +175,32 @@ const styles = StyleSheet.create({
     color: "#e63946",
     fontSize: 13,
     marginBottom: 10,
+  },
+  dividerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginVertical: 20,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: "#2a2a2a",
+  },
+  dividerText: {
+    color: "#888",
+    marginHorizontal: 12,
+    fontSize: 13,
+  },
+  googleButton: {
+    backgroundColor: "#fff",
+    borderRadius: 10,
+    paddingVertical: 15,
+    alignItems: "center",
+  },
+  googleButtonText: {
+    color: "#000",
+    fontSize: 16,
+    fontWeight: "600",
   },
   signupLink: {
     color: "#888",

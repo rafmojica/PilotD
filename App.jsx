@@ -6,6 +6,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import { auth } from "./src/config/firebase";
 
 import Signup from "./src/screens/Signup";
+import Login from "./src/screens/Login";
 import Search from "./src/screens/Search";
 
 import Friends from "./src/screens/ActivityScreens/Friends";
@@ -85,7 +86,10 @@ const App = () => {
         {isLoggedIn ? (
           <Stack.Screen name="Main" component={MainTabs} />
         ) : (
-          <Stack.Screen name="Signup" component={Signup} />
+          <>
+            <Stack.Screen name="Signup" component={Signup} />
+            <Stack.Screen name="Login" component={Login} />
+          </>
         )}
       </Stack.Navigator>
     </NavigationContainer>

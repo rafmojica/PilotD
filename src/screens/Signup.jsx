@@ -1,5 +1,6 @@
 import { useState } from "react";
 import {
+  View,
   Text,
   TextInput,
   TouchableOpacity,
@@ -12,6 +13,7 @@ import {
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { doc, setDoc, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "../config/firebase.js";
+import { useGoogleAuth } from "../hooks/useGoogleAuth";
 
 const Signup = ({ navigation }) => {
   const [email, setEmail] = useState("");
@@ -20,6 +22,7 @@ const Signup = ({ navigation }) => {
   const [displayName, setDisplayName] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const { request, loading: googleLoading, error: googleError, signInWithGoogle } = useGoogleAuth();
 
   const handleSignup = async () => {
     if (!email || !password || !username || !displayName) {
@@ -58,6 +61,7 @@ const Signup = ({ navigation }) => {
         createdAt: serverTimestamp(),
       });
     } catch (err) {
+      console.error("Signup error:", err.code, err.message);
       setError(friendlyError(err.code));
       setLoading(false);
       return;
@@ -123,6 +127,26 @@ const Signup = ({ navigation }) => {
             <Text style={styles.buttonText}>Sign Up</Text>
           )}
         </TouchableOpacity>
+
+        <View style={styles.dividerRow}>
+          <View style={styles.dividerLine} />
+          <Text style={styles.dividerText}>or</Text>
+          <View style={styles.dividerLine} />
+        </View>
+
+        <TouchableOpacity
+          style={[styles.googleButton, (googleLoading || !request) && styles.buttonDisabled]}
+          onPress={signInWithGoogle}
+          disabled={googleLoading || !request}
+        >
+          {googleLoading ? (
+            <ActivityIndicator color="#000" />
+          ) : (
+            <Text style={styles.googleButtonText}>Continue with Google</Text>
+          )}
+        </TouchableOpacity>
+
+        {googleError ? <Text style={styles.error}>{googleError}</Text> : null}
 
         {navigation && (
           <TouchableOpacity onPress={() => navigation.navigate("Login")}>
@@ -201,6 +225,32 @@ const styles = StyleSheet.create({
     color: "#e63946",
     fontSize: 13,
     marginBottom: 10,
+  },
+  dividerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginVertical: 20,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: "#2a2a2a",
+  },
+  dividerText: {
+    color: "#888",
+    marginHorizontal: 12,
+    fontSize: 13,
+  },
+  googleButton: {
+    backgroundColor: "#fff",
+    borderRadius: 10,
+    paddingVertical: 15,
+    alignItems: "center",
+  },
+  googleButtonText: {
+    color: "#000",
+    fontSize: 16,
+    fontWeight: "600",
   },
   loginLink: {
     color: "#888",

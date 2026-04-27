@@ -11,6 +11,8 @@ import {
   SafeAreaView,
   StatusBar,
 } from "react-native";
+import { signOut } from "firebase/auth";
+import { auth } from "../../config/firebase";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 // Same palette as PublicLists.jsx — keep these in sync across screens
@@ -293,6 +295,10 @@ const Profile = ({ navigation }) => {
           />
         </View>
 
+        <TouchableOpacity style={styles.signOutBtn} onPress={() => signOut(auth)}>
+          <Text style={styles.signOutText}>Sign Out</Text>
+        </TouchableOpacity>
+
       </ScrollView>
     </SafeAreaView>
   );
@@ -469,6 +475,21 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: C.border,
     marginHorizontal: 16,
+  },
+  signOutBtn: {
+    marginHorizontal: 16,
+    marginTop: 16,
+    paddingVertical: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#3d1a1a",
+    backgroundColor: "#1a0a0a",
+    alignItems: "center",
+  },
+  signOutText: {
+    color: "#EF4444",
+    fontSize: 15,
+    fontWeight: "600",
   },
 });
 
