@@ -47,7 +47,7 @@ const Signup = ({ navigation }) => {
         createdAt: serverTimestamp(),
       });
 
-      // Create default watchlist
+      // Create a Default watchlist
       await setDoc(doc(db, "lists", `${user.uid}_watchlist`), {
         userId: user.uid,
         title: "Watchlist",
