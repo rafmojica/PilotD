@@ -24,6 +24,7 @@ import Lists from "./src/screens/ProfileScreens/Lists";
 import TotpSetup from "./src/screens/TotpSetup";
 
 import ShowCard from "./src/screens/ShowCard";
+import EpisodeCard from "./src/screens/EpisodeCard";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -123,6 +124,7 @@ const App = () => {
           </>
         )}
         <Stack.Screen name="ShowCard" component={ShowCard} />
+        <Stack.Screen name="EpisodeCard" component={EpisodeCard} />
       </Stack.Navigator>
     </NavigationContainer>
   );

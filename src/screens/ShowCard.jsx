@@ -10,10 +10,12 @@ import {
   SafeAreaView,
   StatusBar,
   TextInput,
-  FlatList,
   Modal,
   Dimensions,
 } from "react-native";
+import Stars from "../components/Stars";
+import {doc, getDoc, runTransaction, collection, addDoc, setDoc, getDocs, query, where, limit, serverTimestamp } from "firebase/firestore";
+import {db, auth } from "../config/firebase";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -41,48 +43,6 @@ const C = {
 // ─── Mock community data ──────────────────────────────────────────────────────
 // Replace with real Firebase reads once your db is set up.
 
-const MOCK_COMMUNITY_RATINGS = {
-  average: 4.2,
-  totalRatings: 18420,
-  distribution: { 5: 35, 4.5: 22, 4: 18, 3.5: 11, 3: 7, 2.5: 3, 2: 2, 1.5: 1, 1: 1 },
-};
-
-const MOCK_REVIEWS = [
-  {
-    id: "r1",
-    user: "tv_dad",
-    initials: "JR",
-    avatarColor: "#D97706",
-    rating: 5,
-    text: "An absolute masterpiece of modern television. Every season is better than the last and the finale is one of the greatest in TV history.",
-    likes: 842,
-    date: "Mar 2024",
-    popular: true,
-  },
-  {
-    id: "r2",
-    user: "sara_m",
-    initials: "SM",
-    avatarColor: "#8B5CF6",
-    rating: 4,
-    text: "Brilliant writing and acting throughout. Season 2 dragged a little but it more than recovers. Essential viewing.",
-    likes: 531,
-    date: "Jan 2024",
-    popular: true,
-  },
-  {
-    id: "r3",
-    user: "night_owl_99",
-    initials: "PK",
-    avatarColor: "#0EA5E9",
-    rating: 4.5,
-    text: "I don't give 5 stars often but this came close. The cinematography alone is worth watching for.",
-    likes: 204,
-    date: "Feb 2024",
-    popular: false,
-  },
-];
-
 const MOCK_WHERE_TO_WATCH = [
   { name: "Netflix", type: "Stream" },
   { name: "AMC+", type: "Stream" },
@@ -101,25 +61,51 @@ const formatDate = (dateStr) => {
   return d.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
 };
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
-
-const Stars = ({ rating, size = 14, interactive = false, onRate }) => {
-  const values = [1, 2, 3, 4, 5];
-  return (
-    <View style={{ flexDirection: "row", gap: 2 }}>
-      {values.map((v) => (
-        <TouchableOpacity
-          key={v}
-          disabled={!interactive}
-          onPress={() => onRate && onRate(v)}
-          activeOpacity={0.7}
-        >
-          <Text style={{ color: rating >= v ? C.gold : C.muted, fontSize: size }}>★</Text>
-        </TouchableOpacity>
-      ))}
-    </View>
-  );
+const submitShowRating = async (showId, newRating, prevRating) => {
+  const user = auth.currentUser;
+  if (!user) return;
+  const showRef = doc(db, "shows", String(showId));
+  const userRatingRef = doc(db, "users", user.uid, "showRatings", String(showId));
+  const hadPrev = prevRating > 0;
+  await runTransaction(db, async (transaction) => {
+    const showDoc = await transaction.get(showRef);
+    if (!showDoc.exists()) {
+      transaction.set(showRef, { totalRatings: 1, ratingsSum: newRating, averageRating: newRating });
+    } else {
+      const { totalRatings, ratingsSum } = showDoc.data();
+      const newTotal = hadPrev ? totalRatings : totalRatings + 1;
+      const newSum = ratingsSum - (hadPrev ? prevRating : 0) + newRating;
+      transaction.update(showRef, { totalRatings: newTotal, ratingsSum: newSum, averageRating: newSum / newTotal });
+    }
+    transaction.set(userRatingRef, { rating: newRating, updatedAt: new Date() });
+  });
 };
+
+const writeDiaryEntry = async (showId, showName, rating, reviewText) => {
+  const user = auth.currentUser;
+  if (!user) return;
+  const existingQuery = await getDocs(
+    query(collection(db, "users", user.uid, "diary"), where("showId", "==", showId), where("type", "==", "show"), limit(1))
+  );
+  const entryData = {
+    showId,
+    showName,
+    type: "show",
+    rating,
+    review: reviewText ?? null,
+    watchedDate: serverTimestamp(),
+    rewatch: !existingQuery.empty,
+    liked: false,
+    updatedAt: serverTimestamp(),
+  };
+  if (!existingQuery.empty) {
+    await setDoc(doc(db, "users", user.uid, "diary", existingQuery.docs[0].id), entryData);
+  } else {
+    await addDoc(collection(db, "users", user.uid, "diary"), { ...entryData, createdAt: serverTimestamp() });
+  }
+};
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
 
 const AvatarCircle = ({ initials, color, size = 32 }) => (
   <View
@@ -154,52 +140,42 @@ const Section = ({ title, children, action, onAction }) => (
 
 // ─── Rating distribution bar ──────────────────────────────────────────────────
 
-const CommunityRatings = ({ data }) => {
-  const maxPct = Math.max(...Object.values(data.distribution));
-  return (
-    <View style={styles.ratingsBlock}>
-      <View style={styles.ratingsBig}>
-        <Text style={styles.ratingsAvg}>{data.average.toFixed(1)}</Text>
-        <Stars rating={data.average} size={16} />
-        <Text style={styles.ratingsCount}>
-          {(data.totalRatings / 1000).toFixed(1)}k ratings
-        </Text>
-      </View>
-      <View style={styles.ratingsBars}>
-        {Object.entries(data.distribution)
-          .sort(([a], [b]) => b - a)
-          .map(([star, pct]) => (
-            <View key={star} style={styles.ratingBarRow}>
-              <Text style={styles.ratingBarLabel}>{star}★</Text>
-              <View style={styles.ratingBarTrack}>
-                <View
-                  style={[
-                    styles.ratingBarFill,
-                    { width: `${(pct / maxPct) * 100}%` },
-                  ]}
-                />
-              </View>
-            </View>
-          ))}
-      </View>
+const CommunityRatings = ({ data }) => (
+  <View style={styles.ratingsBlock}>
+    <View style={styles.ratingsBig}>
+      <Text style={styles.ratingsAvg}>{data.average.toFixed(1)}</Text>
+      <Stars rating={data.average} size={16} />
+      <Text style={styles.ratingsCount}>
+        {data.total >= 1000
+          ? `${(data.total / 1000).toFixed(1)}k`
+          : data.total} ratings
+      </Text>
     </View>
-  );
-};
+  </View>
+);
 
 // ─── Review card ──────────────────────────────────────────────────────────────
 
 const ReviewCard = ({ review, compact = false }) => (
   <View style={styles.reviewCard}>
     <View style={styles.reviewHeader}>
-      <AvatarCircle initials={review.initials} color={review.avatarColor} size={30} />
+      <AvatarCircle
+        initials={(review.displayName ?? "?").slice(0, 2).toUpperCase()}
+        color="#52B788"
+        size={30}
+      />
       <View style={{ flex: 1 }}>
-        <Text style={styles.reviewUser}>{review.user}</Text>
+        <Text style={styles.reviewUser}>{review.displayName ?? "Anonymous"}</Text>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-          <Stars rating={review.rating} size={11} />
-          <Text style={styles.reviewDate}>{review.date}</Text>
+          <Stars rating={review.rating ?? 0} size={11} />
+          <Text style={styles.reviewDate}>
+            {review.createdAt?.toDate?.().toLocaleDateString("en-US", {
+              month: "short", year: "numeric"
+            }) ?? ""}
+          </Text>
         </View>
       </View>
-      <Text style={styles.reviewLikes}>♥ {review.likes}</Text>
+      <Text style={styles.reviewLikes}>♥ {review.likes ?? 0}</Text>
     </View>
     <Text style={styles.reviewText} numberOfLines={compact ? 3 : undefined}>
       {review.text}
@@ -326,6 +302,9 @@ const ShowCard = ({ route, navigation }) => {
   const [cast, setCast] = useState([]);
   const [crew, setCrew] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [communityRating, setCommunityRating] = useState(null);
+  const [reviews, setReviews] = useState([]);
+  const [prevRating, setPrevRating] = useState(0);
 
   // ── UI state ──
   const [activeSeason, setActiveSeason] = useState(null);
@@ -341,19 +320,36 @@ const ShowCard = ({ route, navigation }) => {
   // ── Fetch all show data ──
   const fetchShowData = useCallback(async () => {
     try {
-      const [showData, seasonsData, episodesData, castData, crewData] = await Promise.all([
-        fetch(`${TVMAZE}/shows/${showId}`).then((r) => r.json()),
-        fetch(`${TVMAZE}/shows/${showId}/seasons`).then((r) => r.json()),
-        fetch(`${TVMAZE}/shows/${showId}/episodes`).then((r) => r.json()),
-        fetch(`${TVMAZE}/shows/${showId}/cast`).then((r) => r.json()),
-        fetch(`${TVMAZE}/shows/${showId}/crew`).then((r) => r.json()),
-      ]);
+      const [showData, seasonsData, episodesData, castData, crewData, ratingSnap, reviewsSnap, userRatingSnap] =
+        await Promise.all([
+          fetch(`${TVMAZE}/shows/${showId}`).then((r) => r.json()),
+          fetch(`${TVMAZE}/shows/${showId}/seasons`).then((r) => r.json()),
+          fetch(`${TVMAZE}/shows/${showId}/episodes`).then((r) => r.json()),
+          fetch(`${TVMAZE}/shows/${showId}/cast`).then((r) => r.json()),
+          fetch(`${TVMAZE}/shows/${showId}/crew`).then((r) => r.json()),
+          getDoc(doc(db, "shows", String(showId))),
+          getDocs(collection(db, "shows", String(showId), "reviews")),
+          auth.currentUser
+            ? getDoc(doc(db, "users", auth.currentUser.uid, "showRatings", String(showId)))
+            : Promise.resolve(null),
+        ]);
+
       setShow(showData);
       setSeasons(seasonsData);
       setAllEpisodes(episodesData);
-      setCast(castData.slice(0, 20)); // cap at 20 cast members
+      setCast(castData.slice(0, 20));
       setCrew(crewData);
       setActiveSeason(seasonsData[0] ?? null);
+
+      if (ratingSnap.exists()) {
+        setCommunityRating({
+          average: ratingSnap.data().averageRating ?? 0,
+          total: ratingSnap.data().totalRatings ?? 0,
+        });
+      }
+      setReviews(reviewsSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      if (userRatingSnap?.exists()) setMyRating(userRatingSnap.data().rating);
+
     } catch (err) {
       console.error("[ShowCard] fetch error:", err);
     } finally {
@@ -521,7 +517,13 @@ const ShowCard = ({ route, navigation }) => {
 
         {/* ── Community Ratings ── */}
         <Section title="Community Ratings">
-          <CommunityRatings data={MOCK_COMMUNITY_RATINGS} />
+          {communityRating ? (
+            <CommunityRatings data={communityRating} />
+          ) : (
+            <Text style={{ color: C.muted, fontSize: 13, fontStyle: "italic" }}>
+              No ratings yet
+            </Text>
+          )}
         </Section>
 
         {/* ── Rate it yourself ── */}
@@ -572,8 +574,12 @@ const ShowCard = ({ route, navigation }) => {
                 key={ep.id}
                 episode={ep}
                 onPress={() => {
-                  // TODO: navigate to EpisodeCard
-                  // navigation.navigate("EpisodeCard", { episodeId: ep.id })
+                  navigation.navigate("EpisodeCard", { 
+                    episodeId: ep.id,
+                    showId: showId,
+                    showName: show.name,
+                    seasonNumber: activeSeason?.number
+                  });
                   console.log("Navigate to episode:", ep.id);
                 }}
               />
@@ -665,23 +671,20 @@ const ShowCard = ({ route, navigation }) => {
 
         {/* ── Popular Reviews ── */}
         <Section
-          title="Popular Reviews"
-          action="See All"
-          onAction={() => setShowAllReviews(true)}
+          title="Reviews"
+          action={showAllReviews ? "Hide" : "See All"}
+          onAction={() => setShowAllReviews((p) => !p)}
         >
-          {MOCK_REVIEWS.filter((r) => r.popular).map((r) => (
-            <ReviewCard key={r.id} review={r} compact />
-          ))}
+          {reviews.length > 0 ? (
+            (showAllReviews ? reviews : reviews.slice(0, 2)).map((r) => (
+              <ReviewCard key={r.id} review={r} compact={!showAllReviews} />
+            ))
+          ) : (
+            <Text style={{ color: C.muted, fontSize: 13, fontStyle: "italic" }}>
+              No reviews yet — be the first!
+            </Text>
+          )}
         </Section>
-
-        {/* ── All Reviews ── */}
-        {showAllReviews && (
-          <Section title="All Reviews">
-            {MOCK_REVIEWS.map((r) => (
-              <ReviewCard key={r.id} review={r} />
-            ))}
-          </Section>
-        )}
 
         {/* ── Leave a Review ── */}
         <Section title="Leave a Review">
@@ -701,10 +704,23 @@ const ShowCard = ({ route, navigation }) => {
             <TouchableOpacity
               style={[styles.submitBtn, !reviewText.trim() && styles.submitBtnDisabled]}
               disabled={!reviewText.trim()}
-              onPress={() => {
-                // TODO: save review to Firebase
-                console.log("Submit review:", { myRating, reviewText });
-                setReviewText("");
+              onPress={async () => {
+                const user = auth.currentUser;
+                if (!user || !reviewText.trim()) return;
+                try {
+                  await addDoc(collection(db, "shows", String(showId), "reviews"), {
+                    uid: user.uid,
+                    displayName: user.displayName ?? "Anonymous",
+                    rating: myRating,
+                    text: reviewText.trim(),
+                    createdAt: serverTimestamp(),
+                    likes: 0,
+                  });
+                  await writeDiaryEntry(showId, show.name, myRating, reviewText.trim());
+                  setReviewText("");
+                } catch (err) {
+                  console.error("Review submit error:", err);
+                }
               }}
             >
               <Text style={styles.submitBtnText}>Post Review</Text>
@@ -727,7 +743,13 @@ const ShowCard = ({ route, navigation }) => {
         visible={showRateModal}
         onClose={() => setShowRateModal(false)}
         currentRating={myRating}
-        onRate={setMyRating}
+        onRate={async (newRating) => {
+          setPrevRating(myRating);
+          setMyRating(newRating);
+          setShowRateModal(false);
+          await submitShowRating(showId, newRating, myRating);
+          await writeDiaryEntry(showId, show.name, newRating, null);
+        }}
         showTitle={show.name}
       />
     </SafeAreaView>
