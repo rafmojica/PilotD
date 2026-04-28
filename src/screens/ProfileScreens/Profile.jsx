@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  FlatList,
   ScrollView,
   TouchableOpacity,
   Image,
@@ -13,7 +12,8 @@ import {
 } from "react-native";
 import { signOut } from "firebase/auth";
 import { auth, db } from "../../config/firebase";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, collection, query, orderBy, limit, getDocs } from "firebase/firestore";
+import Stars from "../../components/Stars";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 // Same palette as PublicLists.jsx — keep these in sync across screens
@@ -37,67 +37,12 @@ const C = {
   heartSoft: "#EF444420",
 };
 
-// ─── Mock Data ────────────────────────────────────────────────────────────────
-// Replace with real Firebase user data once auth is wired up
-
-const MOCK_USER = {
-  displayName: "Obado",
-  username: "@obado",
-  bio: "Watching too much TV since 2010.",
-  avatarColor: "#52B788",
-  initials: "OB",
-  showsCount: 298,
-  reviewsCount: 47,
-  likesCount: 28,
-  tagsCount: 0,
-  followingCount: 1,
-  followersCount: 1,
-};
-
-// Recent activity: TVMaze show IDs + the star rating the user gave (out of 5)
-const RECENT_ACTIVITY = [
-  { showId: 169,   rating: 5 },  // Breaking Bad
-  { showId: 1621,  rating: 4 },  // Mr. Robot
-  { showId: 82,    rating: 4 },  // Game of Thrones
-  { showId: 526,   rating: 3 },  // Black Mirror
-];
-
-// Rating distribution — how many shows the user rated each star value
-const RATING_DISTRIBUTION = {
-  0.5: 3,
-  1:   5,
-  1.5: 4,
-  2:   12,
-  2.5: 18,
-  3:   40,
-  3.5: 55,
-  4:   72,
-  4.5: 53,
-  5:   36,
-};
-
-// ─── Star renderer ────────────────────────────────────────────────────────────
-
-const Stars = ({ rating, size = 12 }) => {
-  const stars = [];
-  for (let i = 1; i <= 5; i++) {
-    if (rating >= i) {
-      stars.push(<Text key={i} style={{ color: C.gold, fontSize: size }}>★</Text>);
-    } else if (rating >= i - 0.5) {
-      stars.push(<Text key={i} style={{ color: C.gold, fontSize: size }}>½</Text>);
-    } else {
-      stars.push(<Text key={i} style={{ color: C.muted, fontSize: size }}>★</Text>);
-    }
-  }
-  return <View style={{ flexDirection: "row", gap: 1 }}>{stars}</View>;
-};
-
 // ─── Rating Distribution Bar Chart ───────────────────────────────────────────
 
-const RatingChart = () => {
-  const values = Object.values(RATING_DISTRIBUTION);
-  const maxVal = Math.max(...values);
-  const labels = Object.keys(RATING_DISTRIBUTION);
+const RatingChart = ({ distribution }) => {
+  const values = Object.values(distribution);
+  const maxVal = Math.max(...values, 1);
+  const labels = Object.keys(distribution);
 
   return (
     <View style={styles.chartContainer}>
@@ -125,19 +70,21 @@ const RatingChart = () => {
 
 // ─── Recent Activity Card ─────────────────────────────────────────────────────
 
-const ActivityCard = ({ showId, rating, posterUri }) => (
-  <View style={styles.activityCard}>
-    {posterUri ? (
-      <Image source={{ uri: posterUri }} style={styles.activityPoster} resizeMode="cover" />
-    ) : (
-      <View style={[styles.activityPoster, styles.posterPlaceholder]}>
-        <Text style={{ fontSize: 22 }}>📺</Text>
+const ActivityCard = ({ showId, rating, posterUri, onPress }) => (
+  <TouchableOpacity onPress={onPress} activeOpacity={0.8}>
+    <View style={styles.activityCard}>
+      {posterUri ? (
+        <Image source={{ uri: posterUri }} style={styles.activityPoster} resizeMode="cover" />
+      ) : (
+        <View style={[styles.activityPoster, styles.posterPlaceholder]}>
+          <Text style={{ fontSize: 22 }}>📺</Text>
+        </View>
+      )}
+      <View style={styles.activityRating}>
+        <Stars rating={rating} size={10} />
       </View>
-    )}
-    <View style={styles.activityRating}>
-      <Stars rating={rating} size={10} />
     </View>
-  </View>
+  </TouchableOpacity>
 );
 
 // ─── Stats Row ────────────────────────────────────────────────────────────────
@@ -163,39 +110,80 @@ const Profile = ({ navigation }) => {
   const [posters, setPosters] = useState({});
   const [loading, setLoading] = useState(true);
   const [totpEnabled, setTotpEnabled] = useState(false);
+  const [user, setUser] = useState(null);
+  const [recentActivity, setRecentActivity] = useState([]);
+  const [ratingDistribution, setRatingDistribution] = useState({});
+  const [counts, setCounts] = useState({ showsCount: 0, diaryCount: 0, listsCount: 0, reviewsCount: 0, likesCount: 0, followingCount: 0, followersCount: 0, tagsCount: 0 });
 
-  const fetchPosters = useCallback(async () => {
+  const fetchAll = useCallback(async () => {
+    const uid = auth.currentUser?.uid;
+    if (!uid) return;
     try {
+      // Fetch user profile
+      const userSnap = await getDoc(doc(db, "users", uid));
+      if (userSnap.exists()) setUser({ uid, ...userSnap.data() });
+
+      // Fetch TOTP
+      setTotpEnabled(!!userSnap.data()?.totpEnabled);
+
+      // Fetch 4 most recent diary entries
+      const diarySnap = await getDocs(
+        query(collection(db, "users", uid, "diary"), orderBy("watchedDate", "desc"), limit(4))
+      );
+      const activity = diarySnap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      setRecentActivity(activity);
+
+      // Fetch rating distribution from showRatings
+      const ratingsSnap = await getDocs(collection(db, "users", uid, "showRatings"));
+      const dist = {};
+      ratingsSnap.docs.forEach((d) => {
+        const r = d.data().rating;
+        if (r) dist[r] = (dist[r] ?? 0) + 1;
+      });
+      setRatingDistribution(dist);
+
+      // Fetch counts
+      const [listsSnap, diaryCountSnap, likesSnap, followingSnap, followersSnap] =
+        await Promise.all([
+          getDocs(collection(db, "users", uid, "lists")),
+          getDocs(collection(db, "users", uid, "diary")),
+          getDocs(collection(db, "users", uid, "likes")),
+          getDocs(collection(db, "users", uid, "following")),
+          getDocs(collection(db, "users", uid, "followers")),
+        ]);
+      setCounts({
+        showsCount: ratingsSnap.size,
+        diaryCount: diaryCountSnap.size,
+        listsCount: listsSnap.size,
+        likesCount: likesSnap.size,
+        followingCount: followingSnap.size,
+        followersCount: followersSnap.size,
+        reviewsCount: 0, // TODO: add reviews collection
+        tagsCount: 0,    // TODO: add tags collection
+      });
+
+      // Fetch posters for recent activity
+      const showIds = [...new Set(activity.map((e) => e.showId).filter(Boolean))];
       const results = await Promise.allSettled(
-        RECENT_ACTIVITY.map(({ showId }) =>
-          fetch(`${TVMAZE}/shows/${showId}`)
+        showIds.map((id) =>
+          fetch(`${TVMAZE}/shows/${id}`)
             .then((r) => r.json())
-            .then((data) => ({ showId, uri: data?.image?.medium ?? null }))
+            .then((data) => ({ id, uri: data?.image?.medium ?? null }))
         )
       );
       const map = {};
       results.forEach((r) => {
-        if (r.status === "fulfilled" && r.value.uri) {
-          map[r.value.showId] = r.value.uri;
-        }
+        if (r.status === "fulfilled" && r.value.uri) map[r.value.id] = r.value.uri;
       });
       setPosters(map);
     } catch (err) {
-      console.error("[Profile] poster fetch error:", err);
+      console.error("[Profile] fetch error:", err);
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => {
-    fetchPosters();
-    const uid = auth.currentUser?.uid;
-    if (uid) {
-      getDoc(doc(db, "users", uid)).then((snap) => {
-        setTotpEnabled(!!snap.data()?.totpEnabled);
-      });
-    }
-  }, [fetchPosters]);
+  useEffect(() => { fetchAll(); }, [fetchAll]);
 
   if (loading) {
     return (
@@ -215,15 +203,15 @@ const Profile = ({ navigation }) => {
         <View style={styles.header}>
           <View style={styles.headerTop}>
             {/* Avatar */}
-            <View style={[styles.avatar, { backgroundColor: MOCK_USER.avatarColor }]}>
-              <Text style={styles.avatarText}>{MOCK_USER.initials}</Text>
+            <View style={[styles.avatar, { backgroundColor: user?.avatarColor }]}>
+              <Text style={styles.avatarText}>{user?.initials}</Text>
             </View>
 
             <View style={styles.headerInfo}>
-              <Text style={styles.displayName}>{MOCK_USER.displayName}</Text>
-              <Text style={styles.username}>{MOCK_USER.username}</Text>
-              {MOCK_USER.bio ? (
-                <Text style={styles.bio}>{MOCK_USER.bio}</Text>
+              <Text style={styles.displayName}>{user?.displayName}</Text>
+              <Text style={styles.username}>{user?.username}</Text>
+              {user?.bio ? (
+                <Text style={styles.bio}>{user.bio}</Text>
               ) : null}
             </View>
 
@@ -237,19 +225,20 @@ const Profile = ({ navigation }) => {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Recent Activity</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.activityRow}>
-            {RECENT_ACTIVITY.map(({ showId, rating }) => (
+            {recentActivity.map((entry ) => (
               <ActivityCard
-                key={showId}
-                showId={showId}
-                rating={rating}
-                posterUri={posters[showId]}
+                key={entry.id}
+                showId={entry.showId}
+                rating={entry.rating}
+                posterUri={posters[entry.showId]}
+                onPress={() => navigation.navigate("ShowCard", { showId: entry.showId })}
               />
             ))}
           </ScrollView>
         </View>
 
         {/* ── Rating Distribution ── */}
-        <RatingChart />
+        <RatingChart distribution={ratingDistribution}/>
 
         {/* ── Stats ── */}
         <View style={styles.statsSection}>
@@ -259,24 +248,37 @@ const Profile = ({ navigation }) => {
             once those sub-screens are built.
             e.g. navigation.navigate("AllShows"), navigation.navigate("AllReviews"), etc.
           */}
+          <StatRow
+            label="Diary"
+            value={counts.diaryCount}
+            onPress={() => navigation.navigate("Diary")}
+          />
+          <View style={styles.divider} />
+
+          <StatRow
+            label="Lists"
+            value={counts.listsCount}
+            onPress={() => navigation.navigate("Lists")}
+          />
+          <View style={styles.divider} />
 
           <StatRow
             label="Shows"
-            value={MOCK_USER.showsCount}
+            value={counts.showsCount}
             onPress={() => console.log("TODO: navigate to AllShows")}
           />
           <View style={styles.divider} />
 
           <StatRow
             label="Reviews"
-            value={MOCK_USER.reviewsCount}
+            value={counts.reviewsCount}
             onPress={() => console.log("TODO: navigate to AllReviews")}
           />
           <View style={styles.divider} />
 
           <StatRow
             label="Likes"
-            value={MOCK_USER.likesCount}
+            value={counts.likesCount}
             heart
             onPress={() => console.log("TODO: navigate to Likes")}
           />
@@ -284,21 +286,21 @@ const Profile = ({ navigation }) => {
 
           <StatRow
             label="Tags"
-            value={MOCK_USER.tagsCount}
+            value={counts.tagsCount}
             onPress={() => console.log("TODO: navigate to Tags")}
           />
           <View style={styles.divider} />
 
           <StatRow
             label="Following"
-            value={MOCK_USER.followingCount}
+            value={counts.followingCount}
             onPress={() => console.log("TODO: navigate to Following")}
           />
           <View style={styles.divider} />
 
           <StatRow
             label="Followers"
-            value={MOCK_USER.followersCount}
+            value={counts.followersCount}
             onPress={() => console.log("TODO: navigate to Followers")}
           />
         </View>

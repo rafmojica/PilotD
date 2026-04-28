@@ -10,10 +10,10 @@ import {
   SafeAreaView,
   StatusBar,
   TextInput,
-  FlatList,
   Modal,
   Dimensions,
 } from "react-native";
+import Stars from "../components/Stars";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -102,24 +102,6 @@ const formatDate = (dateStr) => {
 };
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
-
-const Stars = ({ rating, size = 14, interactive = false, onRate }) => {
-  const values = [1, 2, 3, 4, 5];
-  return (
-    <View style={{ flexDirection: "row", gap: 2 }}>
-      {values.map((v) => (
-        <TouchableOpacity
-          key={v}
-          disabled={!interactive}
-          onPress={() => onRate && onRate(v)}
-          activeOpacity={0.7}
-        >
-          <Text style={{ color: rating >= v ? C.gold : C.muted, fontSize: size }}>★</Text>
-        </TouchableOpacity>
-      ))}
-    </View>
-  );
-};
 
 const AvatarCircle = ({ initials, color, size = 32 }) => (
   <View
@@ -572,8 +554,12 @@ const ShowCard = ({ route, navigation }) => {
                 key={ep.id}
                 episode={ep}
                 onPress={() => {
-                  // TODO: navigate to EpisodeCard
-                  // navigation.navigate("EpisodeCard", { episodeId: ep.id })
+                  navigation.navigate("EpisodeCard", { 
+                    episodeId: ep.id,
+                    showId: showId,
+                    showName: show.name,
+                    seasonNumber: activeSeason?.number
+                  });
                   console.log("Navigate to episode:", ep.id);
                 }}
               />
