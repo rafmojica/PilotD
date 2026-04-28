@@ -25,6 +25,8 @@ import PublicLists from "./src/screens/DiscoverScreens/PublicLists";
 import Profile from "./src/screens/ProfileScreens/Profile";
 import Diary from "./src/screens/ProfileScreens/Diary";
 import Lists from "./src/screens/ProfileScreens/Lists";
+import Settings from "./src/screens/ProfileScreens/Settings";
+import EditProfile from "./src/screens/ProfileScreens/EditProfile";
 import TotpSetup from "./src/screens/TotpSetup";
 
 import ShowCard from "./src/screens/ShowCard";
@@ -57,6 +59,8 @@ const ProfileNavigator = () => (
     <ProfileStack.Screen name="Diary" component={Diary} />
     <ProfileStack.Screen name="Lists" component={Lists} />
     <ProfileStack.Screen name="TotpSetup" component={TotpSetup} />
+    <ProfileStack.Screen name="Settings" component={Settings} options={{ presentation: "modal" }} />
+    <ProfileStack.Screen name="EditProfile" component={EditProfile} options={{ presentation: "modal" }} />
   </ProfileStack.Navigator>
 );
 

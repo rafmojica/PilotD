@@ -12,7 +12,6 @@ import {
   SafeAreaView,
   StatusBar,
 } from "react-native";
-import { signOut } from "firebase/auth";
 import { auth, db } from "../../config/firebase";
 import { doc, getDoc, collection, query, orderBy, limit, getDocs } from "firebase/firestore";
 import Stars from "../../components/Stars";
@@ -113,7 +112,6 @@ const StatRow = ({ label, value, onPress, heart }) => (
 const Profile = ({ navigation }) => {
   const [posters, setPosters] = useState({});
   const [loading, setLoading] = useState(true);
-  const [totpEnabled, setTotpEnabled] = useState(false);
   const [user, setUser] = useState(null);
   const [recentActivity, setRecentActivity] = useState([]);
   const [ratingDistribution, setRatingDistribution] = useState({});
@@ -126,9 +124,6 @@ const Profile = ({ navigation }) => {
       // Fetch user profile
       const userSnap = await getDoc(doc(db, "users", uid));
       if (userSnap.exists()) setUser({ uid, ...userSnap.data() });
-
-      // Fetch TOTP
-      setTotpEnabled(!!userSnap.data()?.totpEnabled);
 
       // Fetch 4 most recent diary entries
       const diarySnap = await getDocs(
@@ -218,11 +213,26 @@ const Profile = ({ navigation }) => {
           />
           <View style={styles.headerInfo}>
             <Text style={styles.displayName}>{user?.displayName}</Text>
-            <Text style={styles.username}>@{user?.username}</Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+              <Text style={styles.username}>@{user?.username}</Text>
+              {user?.pronouns ? (
+                <>
+                  <Text style={styles.username}>·</Text>
+                  <Text style={styles.username}>{user.pronouns}</Text>
+                </>
+              ) : null}
+            </View>
             {user?.bio ? (
               <Text style={styles.bio}>{user.bio}</Text>
             ) : null}
           </View>
+          <TouchableOpacity
+            style={styles.gearBtn}
+            onPress={() => navigation.navigate("Settings")}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Text style={styles.gearIcon}>⚙️</Text>
+          </TouchableOpacity>
         </View>
 
         {/* ── Profile Stats ── */}
@@ -246,7 +256,11 @@ const Profile = ({ navigation }) => {
         </View>
 
         {/* ── Edit Profile Button ── */}
-        <TouchableOpacity style={styles.editProfileBtn}>
+        <TouchableOpacity
+          style={styles.editProfileBtn}
+          onPress={() => navigation.navigate("EditProfile")}
+          activeOpacity={0.7}
+        >
           <Text style={styles.editProfileBtnText}>Edit Profile</Text>
         </TouchableOpacity>
 
@@ -334,23 +348,6 @@ const Profile = ({ navigation }) => {
           />
         </View>
 
-        {totpEnabled ? (
-          <View style={styles.twoFactorEnabled}>
-            <Text style={styles.twoFactorEnabledText}>✓  Two-Factor Auth Enabled</Text>
-          </View>
-        ) : (
-          <TouchableOpacity
-            style={styles.twoFactorBtn}
-            onPress={() => navigation.navigate("TotpSetup")}
-          >
-            <Text style={styles.twoFactorText}>Enable Two-Factor Auth</Text>
-          </TouchableOpacity>
-        )}
-
-        <TouchableOpacity style={styles.signOutBtn} onPress={() => signOut(auth)}>
-          <Text style={styles.signOutText}>Sign Out</Text>
-        </TouchableOpacity>
-
       </ScrollView>
       </FadeInView>
     </SafeAreaView>
@@ -381,6 +378,8 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
   },
   headerInfo: { flex: 1 },
+  gearBtn: { padding: 4 },
+  gearIcon: { fontSize: 20 },
   displayName: {
     fontSize: 22,
     fontFamily: "DMSerifDisplay_400Regular",
@@ -542,51 +541,6 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: C.border,
     marginHorizontal: 16,
-  },
-  twoFactorBtn: {
-    marginHorizontal: 16,
-    marginTop: 16,
-    paddingVertical: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: C.border2,
-    backgroundColor: C.surface,
-    alignItems: "center",
-  },
-  twoFactorText: {
-    color: C.accent,
-    fontSize: 15,
-    fontWeight: "600",
-  },
-  twoFactorEnabled: {
-    marginHorizontal: 16,
-    marginTop: 16,
-    paddingVertical: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: C.accent,
-    backgroundColor: C.accentSoft,
-    alignItems: "center",
-  },
-  twoFactorEnabledText: {
-    color: C.accent,
-    fontSize: 15,
-    fontWeight: "700",
-  },
-  signOutBtn: {
-    marginHorizontal: 16,
-    marginTop: 16,
-    paddingVertical: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "#3d1a1a",
-    backgroundColor: "#1a0a0a",
-    alignItems: "center",
-  },
-  signOutText: {
-    color: "#EF4444",
-    fontSize: 15,
-    fontWeight: "600",
   },
 });
 
