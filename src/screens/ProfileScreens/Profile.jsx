@@ -14,6 +14,7 @@ import { signOut } from "firebase/auth";
 import { auth, db } from "../../config/firebase";
 import { doc, getDoc, collection, query, orderBy, limit, getDocs } from "firebase/firestore";
 import Stars from "../../components/Stars";
+import InitialsAvatar from "../../components/InitialsAvatar";
 import { useFocusEffect } from "@react-navigation/native";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -208,9 +209,12 @@ const Profile = ({ navigation }) => {
         <View style={styles.header}>
           <View style={styles.headerTop}>
             {/* Avatar */}
-            <View style={[styles.avatar, { backgroundColor: user?.avatarColor }]}>
-              <Text style={styles.avatarText}>{user?.initials}</Text>
-            </View>
+            <InitialsAvatar
+              name={user?.displayName}
+              size={64}
+              color={user?.avatarColor}
+              style={{ borderWidth: 2, borderColor: "#52B788" }}
+            />
 
             <View style={styles.headerInfo}>
               <Text style={styles.displayName}>{user?.displayName}</Text>
@@ -359,14 +363,6 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     gap: 14,
   },
-  avatar: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  avatarText: { color: "#fff", fontSize: 22, fontWeight: "800" },
   headerInfo: { flex: 1 },
   displayName: {
     fontSize: 20,

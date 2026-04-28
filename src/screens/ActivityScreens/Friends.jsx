@@ -11,6 +11,7 @@ import {
   SafeAreaView,
   StatusBar,
 } from "react-native";
+import InitialsAvatar from "../../components/InitialsAvatar";
 
 // ─── Mock Data ────────────────────────────────────────────────────────────────
 
@@ -179,7 +180,11 @@ const ActivityItem = ({ item }) => {
       activeOpacity={0.85}
       onPress={() => {}}
     >
-      <Image source={{ uri: item.friend.avatarUrl }} style={styles.avatar} />
+      <InitialsAvatar
+        name={item.friend.displayName}
+        size={38}
+        style={{ flexShrink: 0, borderWidth: 1.5, borderColor: "#40916C" }}
+      />
 
       <View style={styles.body}>
         <View style={styles.topLine}>
@@ -310,13 +315,6 @@ const styles = StyleSheet.create({
     borderBottomColor: C.border,
     gap: 12,
     alignItems: "flex-start",
-  },
-  avatar: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: C.surface,
-    flexShrink: 0,
   },
   body: { flex: 1 },
   topLine: {

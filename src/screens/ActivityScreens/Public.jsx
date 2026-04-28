@@ -12,6 +12,7 @@ import {
   StatusBar,
   ScrollView,
 } from "react-native";
+import InitialsAvatar from "../../components/InitialsAvatar";
 
 // ─── Mock Data ────────────────────────────────────────────────────────────────
 
@@ -212,7 +213,7 @@ const PublicActivityCard = ({ item }) => (
     )}
 
     <View style={styles.cardHeader}>
-      <Image source={{ uri: item.user.avatarUrl }} style={styles.avatar} />
+      <InitialsAvatar name={item.user.username} size={36} />
       <View style={styles.headerText}>
         <Text style={styles.username}>
           @{item.user.username}
@@ -420,12 +421,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 12,
     gap: 10,
-  },
-  avatar: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: C.card,
   },
   headerText: { flex: 1 },
   username: { color: C.text, fontWeight: "600", fontSize: 13 },
