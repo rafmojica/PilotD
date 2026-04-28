@@ -10,63 +10,30 @@ import {
   Platform,
   ScrollView,
 } from "react-native";
-import { createUserWithEmailAndPassword } from "firebase/auth";
-import { doc, setDoc, serverTimestamp } from "firebase/firestore";
-import { auth, db } from "../config/firebase.js";
+import { signInWithEmailAndPassword } from "firebase/auth";
+import { auth } from "../config/firebase.js";
 import { useGoogleAuth } from "../hooks/useGoogleAuth";
 
-const Signup = ({ navigation }) => {
+const Login = ({ navigation }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [username, setUsername] = useState("");
-  const [displayName, setDisplayName] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const { request, loading: googleLoading, error: googleError, signInWithGoogle } = useGoogleAuth();
 
-  const handleSignup = async () => {
-    if (!email || !password || !username || !displayName) {
-      setError("All fields are required.");
+  const handleLogin = async () => {
+    if (!email || !password) {
+      setError("Email and password are required.");
       return;
     }
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters.");
-      return;
-    }
-
     setLoading(true);
     setError("");
-
     try {
-      const { user } = await createUserWithEmailAndPassword(auth, email, password);
-
-      await setDoc(doc(db, "users", user.uid), {
-        username: username.trim().toLowerCase(),
-        displayName: displayName.trim(),
-        bio: "",
-        photoURL: "",
-        followerCount: 0,
-        followingCount: 0,
-        createdAt: serverTimestamp(),
-      });
-
-      // Create a Default watchlist
-      await setDoc(doc(db, "lists", `${user.uid}_watchlist`), {
-        userId: user.uid,
-        title: "Watchlist",
-        description: "Shows I want to watch",
-        showIds: [],
-        isPublic: true,
-        isWatchlist: true,
-        createdAt: serverTimestamp(),
-      });
+      await signInWithEmailAndPassword(auth, email, password);
     } catch (err) {
-      console.error("Signup error:", err.code, err.message);
       setError(friendlyError(err.code));
       setLoading(false);
-      return;
     }
-    setLoading(false);
   };
 
   return (
@@ -75,26 +42,9 @@ const Signup = ({ navigation }) => {
       behavior={Platform.OS === "ios" ? "padding" : "height"}
     >
       <ScrollView contentContainerStyle={styles.inner} keyboardShouldPersistTaps="handled">
-        <Text style={styles.title}>Create Account</Text>
-        <Text style={styles.subtitle}>Track every show you watch.</Text>
+        <Text style={styles.title}>Welcome back.</Text>
+        <Text style={styles.subtitle}>Log in to your account.</Text>
 
-        <TextInput
-          style={styles.input}
-          placeholder="Display Name"
-          placeholderTextColor="#888"
-          value={displayName}
-          onChangeText={setDisplayName}
-          autoCapitalize="words"
-        />
-        <TextInput
-          style={styles.input}
-          placeholder="Username"
-          placeholderTextColor="#888"
-          value={username}
-          onChangeText={(t) => setUsername(t.replace(/\s/g, ""))}
-          autoCapitalize="none"
-          autoCorrect={false}
-        />
         <TextInput
           style={styles.input}
           placeholder="Email"
@@ -118,13 +68,13 @@ const Signup = ({ navigation }) => {
 
         <TouchableOpacity
           style={[styles.button, loading && styles.buttonDisabled]}
-          onPress={handleSignup}
+          onPress={handleLogin}
           disabled={loading}
         >
           {loading ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.buttonText}>Sign Up</Text>
+            <Text style={styles.buttonText}>Log In</Text>
           )}
         </TouchableOpacity>
 
@@ -148,13 +98,11 @@ const Signup = ({ navigation }) => {
 
         {googleError ? <Text style={styles.error}>{googleError}</Text> : null}
 
-        {navigation && (
-          <TouchableOpacity onPress={() => navigation.navigate("Login")}>
-            <Text style={styles.loginLink}>
-              Already have an account? <Text style={styles.loginLinkBold}>Log in</Text>
-            </Text>
-          </TouchableOpacity>
-        )}
+        <TouchableOpacity onPress={() => navigation.navigate("Signup")}>
+          <Text style={styles.signupLink}>
+            Don't have an account? <Text style={styles.signupLinkBold}>Sign up</Text>
+          </Text>
+        </TouchableOpacity>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -162,12 +110,14 @@ const Signup = ({ navigation }) => {
 
 const friendlyError = (code) => {
   switch (code) {
-    case "auth/email-already-in-use":
-      return "That email is already in use.";
+    case "auth/user-not-found":
+    case "auth/wrong-password":
+    case "auth/invalid-credential":
+      return "Incorrect email or password.";
     case "auth/invalid-email":
       return "Please enter a valid email.";
-    case "auth/weak-password":
-      return "Password must be at least 6 characters.";
+    case "auth/too-many-requests":
+      return "Too many attempts. Try again later.";
     default:
       return "Something went wrong. Please try again.";
   }
@@ -252,16 +202,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
   },
-  loginLink: {
+  signupLink: {
     color: "#888",
     textAlign: "center",
     marginTop: 24,
     fontSize: 14,
   },
-  loginLinkBold: {
+  signupLinkBold: {
     color: "#fff",
     fontWeight: "600",
   },
 });
 
-export default Signup;
+export default Login;

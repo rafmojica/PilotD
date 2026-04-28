@@ -11,6 +11,9 @@ import {
   SafeAreaView,
   StatusBar,
 } from "react-native";
+import { signOut } from "firebase/auth";
+import { auth, db } from "../../config/firebase";
+import { doc, getDoc } from "firebase/firestore";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 // Same palette as PublicLists.jsx — keep these in sync across screens
@@ -159,6 +162,7 @@ const StatRow = ({ label, value, onPress, heart }) => (
 const Profile = ({ navigation }) => {
   const [posters, setPosters] = useState({});
   const [loading, setLoading] = useState(true);
+  const [totpEnabled, setTotpEnabled] = useState(false);
 
   const fetchPosters = useCallback(async () => {
     try {
@@ -185,6 +189,12 @@ const Profile = ({ navigation }) => {
 
   useEffect(() => {
     fetchPosters();
+    const uid = auth.currentUser?.uid;
+    if (uid) {
+      getDoc(doc(db, "users", uid)).then((snap) => {
+        setTotpEnabled(!!snap.data()?.totpEnabled);
+      });
+    }
   }, [fetchPosters]);
 
   if (loading) {
@@ -292,6 +302,23 @@ const Profile = ({ navigation }) => {
             onPress={() => console.log("TODO: navigate to Followers")}
           />
         </View>
+
+        {totpEnabled ? (
+          <View style={styles.twoFactorEnabled}>
+            <Text style={styles.twoFactorEnabledText}>✓  Two-Factor Auth Enabled</Text>
+          </View>
+        ) : (
+          <TouchableOpacity
+            style={styles.twoFactorBtn}
+            onPress={() => navigation.navigate("TotpSetup")}
+          >
+            <Text style={styles.twoFactorText}>Enable Two-Factor Auth</Text>
+          </TouchableOpacity>
+        )}
+
+        <TouchableOpacity style={styles.signOutBtn} onPress={() => signOut(auth)}>
+          <Text style={styles.signOutText}>Sign Out</Text>
+        </TouchableOpacity>
 
       </ScrollView>
     </SafeAreaView>
@@ -469,6 +496,51 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: C.border,
     marginHorizontal: 16,
+  },
+  twoFactorBtn: {
+    marginHorizontal: 16,
+    marginTop: 16,
+    paddingVertical: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: C.border2,
+    backgroundColor: C.surface,
+    alignItems: "center",
+  },
+  twoFactorText: {
+    color: C.accent,
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  twoFactorEnabled: {
+    marginHorizontal: 16,
+    marginTop: 16,
+    paddingVertical: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: C.accent,
+    backgroundColor: C.accentSoft,
+    alignItems: "center",
+  },
+  twoFactorEnabledText: {
+    color: C.accent,
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  signOutBtn: {
+    marginHorizontal: 16,
+    marginTop: 16,
+    paddingVertical: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "#3d1a1a",
+    backgroundColor: "#1a0a0a",
+    alignItems: "center",
+  },
+  signOutText: {
+    color: "#EF4444",
+    fontSize: 15,
+    fontWeight: "600",
   },
 });
 
