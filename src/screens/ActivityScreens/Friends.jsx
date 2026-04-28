@@ -1,4 +1,4 @@
-// src/Screens/ActivityScreens/Friends.jsx
+// src/screens/ActivityScreens/Friends.jsx
 
 import React, { useState } from "react";
 import {
@@ -122,6 +122,21 @@ const MOCK_FRIEND_ACTIVITY = [
   },
 ];
 
+// ─── Colors ───────────────────────────────────────────────────────────────────
+
+const C = {
+  bg: "#081C15",
+  surface: "#0d2b1d",
+  border: "rgba(45,106,79,0.2)",
+  accent: "#52B788",
+  accentPress: "rgba(82,183,136,0.05)",
+  text: "#D8F3DC",
+  textSec: "#95D5B2",
+  muted: "#40916C",
+  star: "#F4A827",
+  rose: "#C4788A",
+};
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const getActivityLabel = (item) => {
@@ -155,45 +170,61 @@ const StarRating = ({ rating }) => {
   return <Text style={styles.stars}>{stars.join("")}</Text>;
 };
 
-const ActivityCard = ({ item }) => (
-  <View style={styles.card}>
-    <View style={styles.cardHeader}>
+const ActivityItem = ({ item }) => {
+  const showThumb = item.type !== "added_to_list" && item.show?.posterUrl;
+
+  return (
+    <TouchableOpacity
+      style={styles.item}
+      activeOpacity={0.85}
+      onPress={() => {}}
+    >
       <Image source={{ uri: item.friend.avatarUrl }} style={styles.avatar} />
-      <View style={styles.headerText}>
-        <Text style={styles.friendName}>
-          {item.friend.displayName}{" "}
-          <Text style={styles.actionLabel}>{getActivityLabel(item)}</Text>
-        </Text>
-        <Text style={styles.timestamp}>{item.timestamp}</Text>
-      </View>
-    </View>
 
-    <View style={styles.showRow}>
-      <Image source={{ uri: item.show.posterUrl }} style={styles.poster} />
-      <View style={styles.showInfo}>
-        <Text style={styles.showTitle}>{item.show.title}</Text>
-        <Text style={styles.showYear}>{item.show.year}</Text>
-        {item.rating !== undefined && <StarRating rating={item.rating} />}
+      <View style={styles.body}>
+        <View style={styles.topLine}>
+          <Text style={styles.username}>{item.friend.displayName}</Text>
+          <Text style={styles.action}> {getActivityLabel(item)} </Text>
+          <Text style={styles.showName}>{item.show.title}</Text>
+        </View>
+
+        {item.rating !== undefined && (
+          <View style={styles.ratingRow}>
+            <StarRating rating={item.rating} />
+          </View>
+        )}
+
         {item.review ? (
-          <Text style={styles.reviewText} numberOfLines={3}>
-            {item.review}
-          </Text>
+          <View style={styles.reviewBlock}>
+            <Text style={styles.reviewText} numberOfLines={3}>
+              {item.review}
+            </Text>
+          </View>
         ) : null}
-      </View>
-    </View>
 
-    <View style={styles.cardFooter}>
-      <TouchableOpacity style={styles.footerBtn}>
-        <Text style={styles.footerIcon}>♥</Text>
-        <Text style={styles.footerCount}>{item.likeCount}</Text>
-      </TouchableOpacity>
-      <TouchableOpacity style={styles.footerBtn}>
-        <Text style={styles.footerIcon}>💬</Text>
-        <Text style={styles.footerCount}>{item.commentCount}</Text>
-      </TouchableOpacity>
-    </View>
-  </View>
-);
+        <Text style={styles.timestamp}>{item.timestamp}</Text>
+
+        <View style={styles.footer}>
+          <TouchableOpacity style={styles.footerBtn}>
+            <Text style={[styles.footerIcon, { color: C.rose }]}>♥</Text>
+            <Text style={styles.footerCount}>{item.likeCount}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.footerBtn}>
+            <Text style={styles.footerIcon}>💬</Text>
+            <Text style={styles.footerCount}>{item.commentCount}</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {showThumb && (
+        <Image
+          source={{ uri: item.show.posterUrl }}
+          style={styles.thumb}
+        />
+      )}
+    </TouchableOpacity>
+  );
+};
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
@@ -202,9 +233,14 @@ const Friends = () => {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <StatusBar barStyle="light-content" />
+      <StatusBar barStyle="light-content" backgroundColor={C.bg} />
+
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Friends</Text>
+        <Text style={styles.headerTitle}>Activity</Text>
+        <View style={styles.bellWrap}>
+          <Text style={styles.bell}>🔔</Text>
+          <View style={styles.bellDot} />
+        </View>
       </View>
 
       {activities.length === 0 ? (
@@ -218,9 +254,9 @@ const Friends = () => {
         <FlatList
           data={activities}
           keyExtractor={(item) => item.id}
-          renderItem={({ item }) => <ActivityCard item={item} />}
-          contentContainerStyle={styles.list}
+          renderItem={({ item }) => <ActivityItem item={item} />}
           showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingBottom: 20 }}
         />
       )}
     </SafeAreaView>
@@ -231,79 +267,94 @@ export default Friends;
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
-const COLORS = {
-  bg: "#0f0f13",
-  surface: "#1a1a22",
-  border: "#2a2a36",
-  accent: "#e8c97e",
-  text: "#f0eeea",
-  muted: "#888898",
-  star: "#e8c97e",
-};
-
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: COLORS.bg },
+  safe: { flex: 1, backgroundColor: C.bg },
+
   header: {
     paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  headerTitle: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: COLORS.text,
-    letterSpacing: 0.3,
-  },
-  list: { paddingVertical: 12, paddingHorizontal: 16, gap: 12 },
-
-  card: {
-    backgroundColor: COLORS.surface,
-    borderRadius: 12,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  cardHeader: {
+    paddingTop: 16,
+    paddingBottom: 12,
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 12,
-    gap: 10,
+    justifyContent: "space-between",
   },
-  avatar: {
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: "700",
+    color: C.text,
+    letterSpacing: -0.5,
+  },
+  bellWrap: {
     width: 36,
     height: 36,
-    borderRadius: 18,
-    backgroundColor: COLORS.border,
+    justifyContent: "center",
+    alignItems: "center",
+    position: "relative",
   },
-  headerText: { flex: 1 },
-  friendName: { color: COLORS.text, fontWeight: "600", fontSize: 14 },
-  actionLabel: { color: COLORS.muted, fontWeight: "400" },
-  timestamp: { color: COLORS.muted, fontSize: 12, marginTop: 2 },
-
-  showRow: { flexDirection: "row", gap: 12, marginBottom: 12 },
-  poster: {
-    width: 56,
-    height: 84,
-    borderRadius: 6,
-    backgroundColor: COLORS.border,
+  bell: { fontSize: 20 },
+  bellDot: {
+    position: "absolute",
+    top: 2,
+    right: 2,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: C.rose,
   },
-  showInfo: { flex: 1, gap: 4 },
-  showTitle: { color: COLORS.text, fontWeight: "700", fontSize: 15 },
-  showYear: { color: COLORS.muted, fontSize: 12 },
-  stars: { color: COLORS.star, fontSize: 14, letterSpacing: 1 },
-  reviewText: { color: COLORS.text, fontSize: 13, lineHeight: 18, opacity: 0.85 },
 
-  cardFooter: {
+  item: {
     flexDirection: "row",
-    gap: 16,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
-    paddingTop: 10,
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: C.border,
+    gap: 12,
+    alignItems: "flex-start",
   },
+  avatar: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: C.surface,
+    flexShrink: 0,
+  },
+  body: { flex: 1 },
+  topLine: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "baseline",
+  },
+  username: { fontSize: 13, fontWeight: "600", color: C.text },
+  action: { fontSize: 13, color: C.textSec },
+  showName: { fontSize: 13, fontWeight: "500", color: C.accent },
+  ratingRow: { marginTop: 4 },
+  stars: { color: C.star, fontSize: 11, letterSpacing: 1 },
+  reviewBlock: {
+    marginTop: 8,
+    padding: 10,
+    backgroundColor: C.surface,
+    borderRadius: 8,
+    borderLeftWidth: 2,
+    borderLeftColor: C.accent,
+  },
+  reviewText: {
+    fontSize: 12,
+    color: C.textSec,
+    lineHeight: 18,
+    fontStyle: "italic",
+  },
+  timestamp: { fontSize: 11, color: C.muted, marginTop: 4 },
+  footer: { flexDirection: "row", gap: 16, marginTop: 8 },
   footerBtn: { flexDirection: "row", alignItems: "center", gap: 4 },
-  footerIcon: { fontSize: 14 },
-  footerCount: { color: COLORS.muted, fontSize: 13 },
+  footerIcon: { fontSize: 13, color: C.muted },
+  footerCount: { fontSize: 12, color: C.muted },
+  thumb: {
+    width: 42,
+    height: 60,
+    borderRadius: 6,
+    backgroundColor: C.surface,
+    flexShrink: 0,
+  },
 
   empty: {
     flex: 1,
@@ -312,6 +363,6 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingHorizontal: 40,
   },
-  emptyTitle: { color: COLORS.text, fontSize: 18, fontWeight: "600" },
-  emptySubtitle: { color: COLORS.muted, fontSize: 14, textAlign: "center" },
+  emptyTitle: { color: C.text, fontSize: 18, fontWeight: "600" },
+  emptySubtitle: { color: C.muted, fontSize: 14, textAlign: "center" },
 });

@@ -1,4 +1,4 @@
-// src/Screens/ActivityScreens/Public.jsx
+// src/screens/ActivityScreens/Public.jsx
 
 import React, { useState } from "react";
 import {
@@ -137,6 +137,25 @@ const MOCK_PUBLIC_ACTIVITY = [
 
 const FILTER_OPTIONS = ["All", "Reviews", "Watched", "Lists"];
 
+// ─── Colors ───────────────────────────────────────────────────────────────────
+
+const C = {
+  bg: "#081C15",
+  surface: "#0d2b1d",
+  card: "#1B4332",
+  border: "rgba(45,106,79,0.2)",
+  borderStrong: "#2D6A4F",
+  accent: "#52B788",
+  accentPress: "rgba(82,183,136,0.05)",
+  text: "#D8F3DC",
+  textSec: "#95D5B2",
+  muted: "#40916C",
+  star: "#F4A827",
+  rose: "#C4788A",
+  trending: "rgba(244,168,39,0.15)",
+  trendingText: "#F4A827",
+};
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const getActivityLabel = (item) => {
@@ -197,9 +216,7 @@ const PublicActivityCard = ({ item }) => (
       <View style={styles.headerText}>
         <Text style={styles.username}>
           @{item.user.username}
-          {item.user.isVerified ? (
-            <Text style={styles.verified}> ✓</Text>
-          ) : null}
+          {item.user.isVerified ? <Text style={styles.verified}> ✓</Text> : null}
         </Text>
         <Text style={styles.actionLabel}>
           {getActivityLabel(item)} · {item.timestamp}
@@ -220,16 +237,18 @@ const PublicActivityCard = ({ item }) => (
         </Text>
         {item.rating !== undefined && <StarRating rating={item.rating} />}
         {item.review ? (
-          <Text style={styles.reviewText} numberOfLines={4}>
-            {item.review}
-          </Text>
+          <View style={styles.reviewBlock}>
+            <Text style={styles.reviewText} numberOfLines={4}>
+              {item.review}
+            </Text>
+          </View>
         ) : null}
       </View>
     </View>
 
     <View style={styles.cardFooter}>
       <TouchableOpacity style={styles.footerBtn}>
-        <Text style={styles.footerIcon}>♥</Text>
+        <Text style={[styles.footerIcon, { color: C.rose }]}>♥</Text>
         <Text style={styles.footerCount}>{item.likeCount}</Text>
       </TouchableOpacity>
       <TouchableOpacity style={styles.footerBtn}>
@@ -258,7 +277,7 @@ const Public = () => {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <StatusBar barStyle="light-content" />
+      <StatusBar barStyle="light-content" backgroundColor={C.bg} />
 
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Popular</Text>
@@ -282,7 +301,10 @@ const Public = () => {
               {FILTER_OPTIONS.map((f) => (
                 <TouchableOpacity
                   key={f}
-                  style={[styles.filterPill, activeFilter === f && styles.filterPillActive]}
+                  style={[
+                    styles.filterPill,
+                    activeFilter === f && styles.filterPillActive,
+                  ]}
                   onPress={() => setActiveFilter(f)}
                 >
                   <Text
@@ -313,97 +335,85 @@ export default Public;
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
-const COLORS = {
-  bg: "#0f0f13",
-  surface: "#1a1a22",
-  border: "#2a2a36",
-  accent: "#e8c97e",
-  accentDim: "#3a3220",
-  text: "#f0eeea",
-  muted: "#888898",
-  star: "#e8c97e",
-  trendingBg: "#1f1a10",
-  trendingText: "#e8c97e",
-  verified: "#7eb8e8",
-  followBorder: "#3a3a50",
-};
-
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: COLORS.bg },
+  safe: { flex: 1, backgroundColor: C.bg },
+
   header: {
     paddingHorizontal: 20,
     paddingTop: 16,
     paddingBottom: 12,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
+    borderBottomColor: C.border,
   },
   headerTitle: {
-    fontSize: 22,
+    fontSize: 28,
     fontWeight: "700",
-    color: COLORS.text,
-    letterSpacing: 0.3,
+    color: C.text,
+    letterSpacing: -0.5,
   },
-  headerSubtitle: { fontSize: 13, color: COLORS.muted, marginTop: 2 },
+  headerSubtitle: { fontSize: 13, color: C.muted, marginTop: 2 },
 
   trendingSection: { paddingTop: 16, paddingBottom: 8 },
   trendingSectionTitle: {
-    color: COLORS.muted,
+    color: C.muted,
     fontSize: 11,
     fontWeight: "700",
     letterSpacing: 1.2,
     textTransform: "uppercase",
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     marginBottom: 10,
   },
-  trendingScroll: { paddingHorizontal: 16, gap: 10 },
+  trendingScroll: { paddingHorizontal: 20, gap: 10 },
   trendingCard: { width: 72, alignItems: "center", gap: 6 },
   trendingPoster: {
     width: 72,
     height: 108,
-    borderRadius: 6,
-    backgroundColor: COLORS.border,
+    borderRadius: 8,
+    backgroundColor: C.card,
   },
   trendingShowTitle: {
-    color: COLORS.muted,
+    color: C.muted,
     fontSize: 10,
     textAlign: "center",
     lineHeight: 13,
   },
 
-  filterRow: { paddingHorizontal: 16, paddingVertical: 12, gap: 8 },
+  filterRow: { paddingHorizontal: 20, paddingVertical: 12, gap: 8 },
   filterPill: {
     paddingHorizontal: 14,
     paddingVertical: 6,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.surface,
+    borderColor: C.borderStrong,
+    backgroundColor: "rgba(45,106,79,0.3)",
   },
   filterPillActive: {
-    backgroundColor: COLORS.accentDim,
-    borderColor: COLORS.accent,
+    backgroundColor: C.accent,
+    borderColor: C.accent,
   },
-  filterPillText: { color: COLORS.muted, fontSize: 13, fontWeight: "500" },
-  filterPillTextActive: { color: COLORS.accent },
+  filterPillText: { color: C.textSec, fontSize: 12, fontWeight: "500" },
+  filterPillTextActive: { color: "#081C15", fontWeight: "600" },
 
   list: { paddingHorizontal: 16, paddingBottom: 24, gap: 12 },
 
   card: {
-    backgroundColor: COLORS.surface,
+    backgroundColor: C.surface,
     borderRadius: 12,
     padding: 14,
     borderWidth: 1,
-    borderColor: COLORS.border,
+    borderColor: C.border,
   },
   trendingBadge: {
     alignSelf: "flex-start",
-    backgroundColor: COLORS.trendingBg,
-    borderRadius: 6,
+    backgroundColor: C.trending,
+    borderRadius: 4,
     paddingHorizontal: 8,
     paddingVertical: 3,
     marginBottom: 10,
+    borderWidth: 1,
+    borderColor: "rgba(244,168,39,0.25)",
   },
-  trendingBadgeText: { color: COLORS.trendingText, fontSize: 11, fontWeight: "600" },
+  trendingBadgeText: { color: C.trendingText, fontSize: 11, fontWeight: "600" },
 
   cardHeader: {
     flexDirection: "row",
@@ -415,48 +425,56 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: COLORS.border,
+    backgroundColor: C.card,
   },
   headerText: { flex: 1 },
-  username: { color: COLORS.text, fontWeight: "600", fontSize: 14 },
-  verified: { color: COLORS.verified, fontSize: 13 },
-  actionLabel: { color: COLORS.muted, fontSize: 12, marginTop: 1 },
+  username: { color: C.text, fontWeight: "600", fontSize: 13 },
+  verified: { color: "#52B788", fontSize: 12 },
+  actionLabel: { color: C.muted, fontSize: 12, marginTop: 1 },
   followBtn: {
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     paddingVertical: 5,
-    borderRadius: 16,
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: COLORS.followBorder,
+    borderColor: C.accent,
   },
-  followBtnText: { color: COLORS.text, fontSize: 12, fontWeight: "600" },
+  followBtnText: { color: C.accent, fontSize: 12, fontWeight: "600" },
 
   showRow: { flexDirection: "row", gap: 12, marginBottom: 12 },
   poster: {
     width: 56,
     height: 84,
     borderRadius: 6,
-    backgroundColor: COLORS.border,
+    backgroundColor: C.card,
   },
   showInfo: { flex: 1, gap: 4 },
-  showTitle: { color: COLORS.text, fontWeight: "700", fontSize: 15 },
-  showMeta: { color: COLORS.muted, fontSize: 12 },
-  stars: { color: COLORS.star, fontSize: 14, letterSpacing: 1 },
-  reviewText: { color: COLORS.text, fontSize: 13, lineHeight: 18, opacity: 0.85 },
+  showTitle: { color: C.text, fontWeight: "700", fontSize: 14 },
+  showMeta: { color: C.muted, fontSize: 12 },
+  stars: { color: C.star, fontSize: 11, letterSpacing: 1 },
+  reviewBlock: {
+    marginTop: 4,
+    padding: 10,
+    backgroundColor: "#081C15",
+    borderRadius: 8,
+    borderLeftWidth: 2,
+    borderLeftColor: C.accent,
+  },
+  reviewText: { color: C.textSec, fontSize: 12, lineHeight: 18, fontStyle: "italic" },
 
   cardFooter: {
     flexDirection: "row",
     alignItems: "center",
     gap: 16,
     borderTopWidth: 1,
-    borderTopColor: COLORS.border,
+    borderTopColor: C.border,
     paddingTop: 10,
   },
   footerBtn: { flexDirection: "row", alignItems: "center", gap: 4 },
-  footerIcon: { fontSize: 14 },
-  footerCount: { color: COLORS.muted, fontSize: 13 },
-  footerShare: { color: COLORS.muted, fontSize: 13 },
+  footerIcon: { fontSize: 13, color: C.muted },
+  footerCount: { color: C.muted, fontSize: 12 },
+  footerShare: { color: C.muted, fontSize: 12 },
 
   empty: { paddingTop: 60, alignItems: "center", gap: 8 },
-  emptyTitle: { color: COLORS.text, fontSize: 18, fontWeight: "600" },
-  emptySubtitle: { color: COLORS.muted, fontSize: 14 },
+  emptyTitle: { color: C.text, fontSize: 18, fontWeight: "600" },
+  emptySubtitle: { color: C.muted, fontSize: 14 },
 });

@@ -5,6 +5,7 @@ import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "./src/config/firebase";
+import { Ionicons } from "@expo/vector-icons";
 
 import Signup from "./src/screens/Signup";
 import Login from "./src/screens/Login";
@@ -33,14 +34,14 @@ const DiscoverStack = createNativeStackNavigator();
 const ProfileStack = createNativeStackNavigator();
 
 const ActivityNavigator = () => (
-  <ActivityStack.Navigator>
+  <ActivityStack.Navigator screenOptions={{ headerShown: false }}>
     <ActivityStack.Screen name="Friends" component={Friends} />
     <ActivityStack.Screen name="Public" component={Public} />
   </ActivityStack.Navigator>
 );
 
 const DiscoverNavigator = () => (
-  <DiscoverStack.Navigator>
+  <DiscoverStack.Navigator screenOptions={{ headerShown: false }}>
     <DiscoverStack.Screen name="Discover" component={Discover} />
     <DiscoverStack.Screen name="MostPopularComments" component={MostPopularComments} />
     <DiscoverStack.Screen name="PublicLists" component={PublicLists} />
@@ -48,31 +49,54 @@ const DiscoverNavigator = () => (
 );
 
 const ProfileNavigator = () => (
-  <ProfileStack.Navigator>
+  <ProfileStack.Navigator screenOptions={{ headerShown: false }}>
     <ProfileStack.Screen name="Profile" component={Profile} />
     <ProfileStack.Screen name="Diary" component={Diary} />
     <ProfileStack.Screen name="Lists" component={Lists} />
-    <ProfileStack.Screen name="TotpSetup" component={TotpSetup} options={{ title: "Two-Factor Auth" }} />
+    <ProfileStack.Screen name="TotpSetup" component={TotpSetup} />
   </ProfileStack.Navigator>
 );
 
+const TAB_ICONS = {
+  Activity: ["pulse", "pulse-outline"],
+  DiscoverTab: ["compass", "compass-outline"],
+  Search: ["search", "search-outline"],
+  ProfileTab: ["person-circle", "person-circle-outline"],
+};
+
 const MainTabs = () => (
-  <Tab.Navigator>
-    <Tab.Screen
-      name="Activity"
-      component={ActivityNavigator}
-      options={{ headerShown: false }}
-    />
+  <Tab.Navigator
+    screenOptions={({ route }) => ({
+      headerShown: false,
+      tabBarIcon: ({ focused, color }) => {
+        const [active, inactive] = TAB_ICONS[route.name] ?? ["ellipse", "ellipse-outline"];
+        return <Ionicons name={focused ? active : inactive} size={24} color={color} />;
+      },
+      tabBarActiveTintColor: "#52B788",
+      tabBarInactiveTintColor: "#40916C",
+      tabBarStyle: {
+        backgroundColor: "#081C15",
+        borderTopColor: "rgba(82,183,136,0.12)",
+        borderTopWidth: 1,
+      },
+      tabBarLabelStyle: {
+        fontSize: 10,
+        fontWeight: "500",
+        letterSpacing: 0.3,
+      },
+    })}
+  >
+    <Tab.Screen name="Activity" component={ActivityNavigator} />
     <Tab.Screen
       name="DiscoverTab"
       component={DiscoverNavigator}
-      options={{ headerShown: false, title: "Discover" }}
+      options={{ title: "Discover" }}
     />
     <Tab.Screen name="Search" component={Search} />
     <Tab.Screen
       name="ProfileTab"
       component={ProfileNavigator}
-      options={{ headerShown: false, title: "Profile" }}
+      options={{ title: "Profile" }}
     />
   </Tab.Navigator>
 );
