@@ -1,4 +1,6 @@
 import React, { useState, useCallback } from "react";
+import FadeInView from "../../components/FadeInView";
+import PressScale from "../../components/PressScale";
 import {
   View,
   Text,
@@ -73,7 +75,7 @@ const RatingChart = ({ distribution }) => {
 // ─── Recent Activity Card ─────────────────────────────────────────────────────
 
 const ActivityCard = ({ showId, rating, posterUri, onPress }) => (
-  <TouchableOpacity onPress={onPress} activeOpacity={0.8}>
+  <PressScale scale={0.94} onPress={onPress}>
     <View style={styles.activityCard}>
       {posterUri ? (
         <Image source={{ uri: posterUri }} style={styles.activityPoster} resizeMode="cover" />
@@ -86,7 +88,7 @@ const ActivityCard = ({ showId, rating, posterUri, onPress }) => (
         <Stars rating={rating} size={10} />
       </View>
     </View>
-  </TouchableOpacity>
+  </PressScale>
 );
 
 // ─── Stats Row ────────────────────────────────────────────────────────────────
@@ -203,6 +205,7 @@ const Profile = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.screen}>
       <StatusBar barStyle="light-content" backgroundColor={C.bg} />
+      <FadeInView>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
 
         {/* ── Header ── */}
@@ -349,6 +352,7 @@ const Profile = ({ navigation }) => {
         </TouchableOpacity>
 
       </ScrollView>
+      </FadeInView>
     </SafeAreaView>
   );
 };

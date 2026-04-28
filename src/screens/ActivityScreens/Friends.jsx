@@ -7,11 +7,13 @@ import {
   FlatList,
   StyleSheet,
   Image,
+  Pressable,
   TouchableOpacity,
   SafeAreaView,
   StatusBar,
 } from "react-native";
 import InitialsAvatar from "../../components/InitialsAvatar";
+import FadeInView from "../../components/FadeInView";
 
 // ─── Mock Data ────────────────────────────────────────────────────────────────
 
@@ -175,11 +177,7 @@ const ActivityItem = ({ item }) => {
   const showThumb = item.type !== "added_to_list" && item.show?.posterUrl;
 
   return (
-    <TouchableOpacity
-      style={styles.item}
-      activeOpacity={0.85}
-      onPress={() => {}}
-    >
+    <Pressable style={({ pressed }) => [styles.item, pressed && { backgroundColor: "rgba(82,183,136,0.05)" }]} onPress={() => {}}>
       <InitialsAvatar
         name={item.friend.displayName}
         size={38}
@@ -227,7 +225,7 @@ const ActivityItem = ({ item }) => {
           style={styles.thumb}
         />
       )}
-    </TouchableOpacity>
+    </Pressable>
   );
 };
 
@@ -240,30 +238,32 @@ const Friends = () => {
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="light-content" backgroundColor={C.bg} />
 
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Activity</Text>
-        <View style={styles.bellWrap}>
-          <Text style={styles.bell}>🔔</Text>
-          <View style={styles.bellDot} />
+      <FadeInView>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Activity</Text>
+          <View style={styles.bellWrap}>
+            <Text style={styles.bell}>🔔</Text>
+            <View style={styles.bellDot} />
+          </View>
         </View>
-      </View>
 
-      {activities.length === 0 ? (
-        <View style={styles.empty}>
-          <Text style={styles.emptyTitle}>No activity yet</Text>
-          <Text style={styles.emptySubtitle}>
-            Follow people to see what they are watching.
-          </Text>
-        </View>
-      ) : (
-        <FlatList
-          data={activities}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => <ActivityItem item={item} />}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: 20 }}
-        />
-      )}
+        {activities.length === 0 ? (
+          <View style={styles.empty}>
+            <Text style={styles.emptyTitle}>No activity yet</Text>
+            <Text style={styles.emptySubtitle}>
+              Follow people to see what they are watching.
+            </Text>
+          </View>
+        ) : (
+          <FlatList
+            data={activities}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => <ActivityItem item={item} />}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ paddingBottom: 20 }}
+          />
+        )}
+      </FadeInView>
     </SafeAreaView>
   );
 };
@@ -315,6 +315,9 @@ const styles = StyleSheet.create({
     borderBottomColor: C.border,
     gap: 12,
     alignItems: "flex-start",
+  },
+  itemPressed: {
+    backgroundColor: "rgba(82,183,136,0.05)",
   },
   body: { flex: 1 },
   topLine: {

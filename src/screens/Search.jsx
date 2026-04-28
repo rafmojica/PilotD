@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef } from "react";
+import FadeInView from "../components/FadeInView";
 import {
   View,
   Text,
   TextInput,
   StyleSheet,
   ScrollView,
+  Pressable,
   TouchableOpacity,
   Image,
   SafeAreaView,
@@ -99,7 +101,7 @@ const ShowResult = ({ item, onPress }) => {
   const rating = show.rating?.average;
 
   return (
-    <TouchableOpacity style={styles.resultRow} activeOpacity={0.75} onPress={onPress}>
+    <Pressable style={({ pressed }) => [styles.resultRow, pressed && { backgroundColor: "rgba(82,183,136,0.05)" }]} onPress={onPress}>
       {show.image?.medium ? (
         <Image source={{ uri: show.image.medium }} style={styles.showThumb} resizeMode="cover" />
       ) : (
@@ -118,7 +120,7 @@ const ShowResult = ({ item, onPress }) => {
         ) : null}
       </View>
       <Text style={styles.chevron}>›</Text>
-    </TouchableOpacity>
+    </Pressable>
   );
 };
 
@@ -243,6 +245,7 @@ const Search = () => {
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="light-content" backgroundColor={C.bg} />
 
+      <FadeInView>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Search</Text>
       </View>
@@ -336,6 +339,7 @@ const Search = () => {
           </View>
         )}
       </ScrollView>
+      </FadeInView>
     </SafeAreaView>
   );
 };
@@ -397,6 +401,9 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: C.borderSubtle,
     gap: 12,
+  },
+  resultRowPressed: {
+    backgroundColor: "rgba(82,183,136,0.05)",
   },
   showThumb: {
     width: 44,

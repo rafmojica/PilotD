@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
+import FadeInView from "../../components/FadeInView";
+import PressScale from "../../components/PressScale";
 import {
   View,
   Text,
@@ -71,9 +73,9 @@ const ShowCard = ({ show, size = "md" }) => {
   const posterH = isSm ? 150 : 190;
 
   return (
-    <TouchableOpacity
+    <PressScale
       style={[styles.card, { width: cardW }]}
-      activeOpacity={0.72}
+      scale={0.96}
       onPress={() => console.log("Navigate to show:", show.id)}
     >
       <View style={[styles.posterWrap, { height: posterH }]}>
@@ -103,7 +105,7 @@ const ShowCard = ({ show, size = "md" }) => {
         {show.premiered?.slice(0, 4) ?? "—"}
         {show.genres?.[0] ? ` · ${show.genres[0]}` : ""}
       </Text>
-    </TouchableOpacity>
+    </PressScale>
   );
 };
 
@@ -136,9 +138,9 @@ const SectionRow = ({ emoji, title, data, cardSize }) => (
 const HeroBanner = ({ show }) => {
   if (!show) return null;
   return (
-    <TouchableOpacity
+    <PressScale
       style={styles.hero}
-      activeOpacity={0.88}
+      scale={0.98}
       onPress={() => console.log("Navigate to show:", show.id)}
     >
       <Image
@@ -187,7 +189,7 @@ const HeroBanner = ({ show }) => {
           </TouchableOpacity>
         </View>
       </View>
-    </TouchableOpacity>
+    </PressScale>
   );
 };
 
@@ -269,6 +271,7 @@ const Discover = () => {
     <SafeAreaView style={styles.screen}>
       <StatusBar barStyle="light-content" backgroundColor={C.bg} />
 
+      <FadeInView>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
@@ -347,6 +350,7 @@ const Discover = () => {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+      </FadeInView>
     </SafeAreaView>
   );
 };
