@@ -18,6 +18,8 @@ import Profile from "./src/screens/ProfileScreens/Profile";
 import Diary from "./src/screens/ProfileScreens/Diary";
 import Lists from "./src/screens/ProfileScreens/Lists";
 
+import ShowCard from "./src/screens/ShowCard";
+
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 const ActivityStack = createNativeStackNavigator();
@@ -79,6 +81,7 @@ const App = () => {
         ) : (
           <Stack.Screen name="Signup" component={Signup} />
         )}
+        <Stack.Screen name="ShowCard" component={ShowCard} />
       </Stack.Navigator>
     </NavigationContainer>
   );
