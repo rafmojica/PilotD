@@ -386,12 +386,13 @@ const styles = StyleSheet.create({
   },
   logoText: {
     fontSize: 20,
-    fontWeight: "800",
+    fontFamily: "DMSerifDisplay_400Regular",
     color: C.accent,
     letterSpacing: 3,
   },
   logoSub: {
     fontSize: 10,
+    fontFamily: "DMSans_400Regular",
     color: C.subtext,
     letterSpacing: 1.2,
     marginTop: 1,
@@ -422,12 +423,13 @@ const styles = StyleSheet.create({
   },
   pageHeadTitle: {
     fontSize: 30,
-    fontWeight: "800",
+    fontFamily: "DMSerifDisplay_400Regular",
     color: C.text,
     letterSpacing: -0.5,
   },
   pageHeadSub: {
     fontSize: 13,
+    fontFamily: "DMSans_400Regular",
     color: C.subtext,
     marginTop: 2,
     letterSpacing: 0.2,
@@ -528,7 +530,7 @@ const styles = StyleSheet.create({
   },
   heroTitle: {
     fontSize: 22,
-    fontWeight: "800",
+    fontFamily: "DMSerifDisplay_400Regular",
     color: C.text,
     letterSpacing: -0.3,
     marginBottom: 4,
@@ -598,7 +600,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 16,
-    fontWeight: "700",
+    fontFamily: "DMSans_700Bold",
     color: C.text,
     letterSpacing: -0.1,
   },

@@ -285,7 +285,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 28,
-    fontWeight: "700",
+    fontFamily: "DMSerifDisplay_400Regular",
     color: C.text,
     letterSpacing: -0.5,
   },

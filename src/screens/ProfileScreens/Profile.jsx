@@ -379,7 +379,7 @@ const styles = StyleSheet.create({
   headerInfo: { flex: 1 },
   displayName: {
     fontSize: 22,
-    fontWeight: "700",
+    fontFamily: "DMSerifDisplay_400Regular",
     color: C.text,
     marginBottom: 2,
   },
@@ -437,7 +437,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 13,
-    fontWeight: "700",
+    fontFamily: "DMSans_700Bold",
     color: C.subtext,
     letterSpacing: 1,
     textTransform: "uppercase",

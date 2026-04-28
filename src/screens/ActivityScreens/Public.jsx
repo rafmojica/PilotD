@@ -348,11 +348,11 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 28,
-    fontWeight: "700",
+    fontFamily: "DMSerifDisplay_400Regular",
     color: C.text,
     letterSpacing: -0.5,
   },
-  headerSubtitle: { fontSize: 13, color: C.muted, marginTop: 2 },
+  headerSubtitle: { fontSize: 13, fontFamily: "DMSans_400Regular", color: C.muted, marginTop: 2 },
 
   trendingSection: { paddingTop: 16, paddingBottom: 8 },
   trendingSectionTitle: {

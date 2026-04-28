@@ -440,12 +440,13 @@ const styles = StyleSheet.create({
   },
   pageTitle: {
     fontSize: 28,
-    fontWeight: "800",
+    fontFamily: "DMSerifDisplay_400Regular",
     color: C.text,
     letterSpacing: -0.4,
   },
   pageSub: {
     fontSize: 12,
+    fontFamily: "DMSans_400Regular",
     color: C.subtext,
     marginTop: 2,
   },
