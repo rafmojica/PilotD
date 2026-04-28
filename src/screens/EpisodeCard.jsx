@@ -80,14 +80,33 @@ const submitEpisodeRating = async (showId, episodeId, newRating, prevRating) => 
   if (!user) return;
 
   const epRef = doc(db, "shows", String(showId), "episodes", String(episodeId));
-  const userRatingRef = doc(
-    db,
-    "users",
-    user.uid,
-    "episodeRatings",
-    String(episodeId)
-  );
+  const userRatingRef = doc(db, "users", user.uid, "episodeRatings", String(episodeId));
   const hadPrev = prevRating > 0;
+
+  await runTransaction(db, async (transaction) => {
+    const epDoc = await transaction.get(epRef);
+    if (!epDoc.exists()) {
+      transaction.set(epRef, {
+        totalRatings: 1,
+        ratingsSum: newRating,
+        averageRating: newRating,
+      });
+    } else {
+      const { totalRatings, ratingsSum } = epDoc.data();
+      const newTotal = hadPrev ? totalRatings : totalRatings + 1;
+      const newSum = ratingsSum - (hadPrev ? prevRating : 0) + newRating;
+      transaction.update(epRef, {
+        totalRatings: newTotal,
+        ratingsSum: newSum,
+        averageRating: newSum / newTotal,
+      });
+    }
+    transaction.set(userRatingRef, {
+      rating: newRating,
+      updatedAt: new Date(),
+    });
+  });
+};
 
 const writeDiaryEntry = async (showId, showName, episodeId, episodeName, seasonNumber, episodeNumber, rating, reviewText) => {
   const user = auth.currentUser;
@@ -109,7 +128,7 @@ const writeDiaryEntry = async (showId, showName, episodeId, episodeName, seasonN
     episodeName,
     type: "episode",
     seasonNumber,
-    episodeNumber,
+    episodeNumber: episodeNumber ?? null,
     rating,
     review: reviewText ?? null,
     watchedDate: serverTimestamp(),
@@ -130,69 +149,6 @@ const writeDiaryEntry = async (showId, showName, episodeId, episodeName, seasonN
     });
   }
 };
-
-  await runTransaction(db, async (transaction) => {
-    const epDoc = await transaction.get(epRef);
-
-    if (!epDoc.exists()) {
-      transaction.set(epRef, {
-        totalRatings: 1,
-        ratingsSum: newRating,
-        averageRating: newRating,
-      });
-    } else {
-      const { totalRatings, ratingsSum } = epDoc.data();
-      const newTotal = hadPrev ? totalRatings : totalRatings + 1;
-      const newSum = ratingsSum - (hadPrev ? prevRating : 0) + newRating;
-      transaction.update(epRef, {
-        totalRatings: newTotal,
-        ratingsSum: newSum,
-        averageRating: newSum / newTotal,
-      });
-    }
-
-    transaction.set(userRatingRef, {
-      rating: newRating,
-      updatedAt: new Date(),
-    });
-  });
-};
-
-// ─── Mock reviews ─────────────────────────────────────────────────────────────
-// Replace with real Firestore reads once reviews are wired up
-
-const MOCK_REVIEWS = [
-  {
-    id: "r1",
-    user: "tv_dad",
-    initials: "JR",
-    avatarColor: "#D97706",
-    rating: 5,
-    text: "One of the greatest single episodes of television ever produced. The direction is flawless.",
-    likes: 312,
-    date: "Mar 2024",
-  },
-  {
-    id: "r2",
-    user: "sara_m",
-    initials: "SM",
-    avatarColor: "#8B5CF6",
-    rating: 5,
-    text: "I was not ready for this. Had to sit in silence for 10 minutes after.",
-    likes: 209,
-    date: "Feb 2024",
-  },
-  {
-    id: "r3",
-    user: "xeno_watch",
-    initials: "AT",
-    avatarColor: "#10B981",
-    rating: 4,
-    text: "Brutal and brilliant. Not easy to watch but impossible to look away.",
-    likes: 88,
-    date: "Jan 2024",
-  },
-];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -331,35 +287,34 @@ const RateModal = ({ visible, onClose, currentRating, onRate, episodeName, savin
 };
 
 // ─── Review Card ──────────────────────────────────────────────────────────────
-
 const ReviewCard = ({ review, compact }) => (
   <View style={styles.reviewCard}>
     <View style={styles.reviewHeader}>
       <AvatarCircle
-        initials={review.initials}
-        color={review.avatarColor}
+        initials={(review.displayName ?? "?").slice(0, 2).toUpperCase()}
+        color="#52B788"
         size={30}
       />
       <View style={{ flex: 1 }}>
-        <Text style={styles.reviewUser}>{review.user}</Text>
+        <Text style={styles.reviewUser}>{review.displayName ?? "Anonymous"}</Text>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-          <Stars rating={review.rating} size={11} />
-          <Text style={styles.reviewDate}>{review.date}</Text>
+          <Stars rating={review.rating ?? 0} size={11} />
+          <Text style={styles.reviewDate}>
+            {review.createdAt?.toDate?.().toLocaleDateString("en-US", {
+              month: "short", year: "numeric"
+            }) ?? ""}
+          </Text>
         </View>
       </View>
-      <Text style={styles.reviewLikes}>♥ {review.likes}</Text>
+      <Text style={styles.reviewLikes}>♥ {review.likes ?? 0}</Text>
     </View>
-    <Text
-      style={styles.reviewText}
-      numberOfLines={compact ? 3 : undefined}
-    >
+    <Text style={styles.reviewText} numberOfLines={compact ? 3 : undefined}>
       {review.text}
     </Text>
   </View>
 );
 
 // ─── Section ──────────────────────────────────────────────────────────────────
-
 const Section = ({ title, children, action, onAction }) => (
   <View style={styles.section}>
     <View style={styles.sectionHeader}>
@@ -400,6 +355,7 @@ const EpisodeCard = ({ route, navigation }) => {
   const [communityRating, setCommunityRating] = useState(null);
   const [myRating, setMyRating] = useState(0);
   const [savingRating, setSavingRating] = useState(false);
+  const [reviews, setReviews] = useState([]);
 
   // UI state
   const [showRateModal, setShowRateModal] = useState(false);
@@ -413,14 +369,16 @@ const EpisodeCard = ({ route, navigation }) => {
   const fetchAll = useCallback(async () => {
     console.log("EpisodeCard params:", { episodeId, showId, showName, seasonNumber });
     try {
-      const [epData, ratingData] = await Promise.all([
-        fetch(`${TVMAZE}/episodes/${episodeId}`).then((r) => r.json()),
-        fetchEpisodeRatingData(showId, episodeId),
-      ]);
+        const [epData, ratingData, reviewsSnap] = await Promise.all([
+            fetch(`${TVMAZE}/episodes/${episodeId}`).then((r) => r.json()),
+            fetchEpisodeRatingData(showId, episodeId),
+            getDocs(collection(db, "shows", String(showId), "episodes", String(episodeId), "reviews")),
+        ]);
 
-      setEpisode(epData);
-      setCommunityRating(ratingData.community);
-      setMyRating(ratingData.myRating);
+        setEpisode(epData);
+        setCommunityRating(ratingData.community);
+        setMyRating(ratingData.myRating);
+        setReviews(reviewsSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
 
       // Also grab the show poster for the hero background
       const showData = await fetch(`${TVMAZE}/shows/${showId}`).then((r) =>
@@ -438,26 +396,6 @@ const EpisodeCard = ({ route, navigation }) => {
     fetchAll();
   }, [fetchAll]);
 
-  // ── Submit episode rating to Firebase ──
-  const handleRateEpisode = useCallback(
-    async (newRating) => {
-      setSavingRating(true);
-      try {
-        await submitEpisodeRating(showId, episodeId, newRating, myRating);
-        // Refresh from Firestore after save
-        const updated = await fetchEpisodeRatingData(showId, episodeId);
-        setCommunityRating(updated.community);
-        setMyRating(updated.myRating);
-        setShowRateModal(false);
-      } catch (err) {
-        console.error("[EpisodeCard] rating error:", err);
-      } finally {
-        setSavingRating(false);
-      }
-    },
-    [showId, episodeId, myRating]
-  );
-
   // ── Derived ──
   const description = stripHtml(episode?.summary);
   const episodeLabel = `S${String(seasonNumber ?? episode?.season ?? "?").padStart(2, "0")} E${String(episode?.number ?? "?").padStart(2, "0")}`;
@@ -470,6 +408,31 @@ const EpisodeCard = ({ route, navigation }) => {
         day: "numeric",
       })
     : null;
+
+  // ── Submit episode rating to Firebase ──
+    const handleRateEpisode = useCallback(
+        async (newRating) => {
+            console.log("handleRateEpisode called:", { showId, episodeId, episodeName, seasonNumber, newRating }); // ← add this
+            setSavingRating(true);
+            try {
+            await submitEpisodeRating(showId, episodeId, newRating, myRating);
+            await writeDiaryEntry(
+                showId, showName, episodeId, episodeName,
+                seasonNumber, episode?.number, newRating, null
+            );
+            const updated = await fetchEpisodeRatingData(showId, episodeId);
+            setCommunityRating(updated.community);
+            setMyRating(updated.myRating);
+            setShowRateModal(false);
+            } catch (err) {
+            console.error("[EpisodeCard] rating error:", err);
+            } finally {
+            setSavingRating(false);
+            }
+        },
+        [showId, episodeId, myRating, showName, episodeName, seasonNumber, episode]
+    );
+
 
   // ─────────────────────────────────────────────────────────────────────────────
 
@@ -673,10 +636,14 @@ const EpisodeCard = ({ route, navigation }) => {
           action={showAllReviews ? "Hide" : "See All"}
           onAction={() => setShowAllReviews((p) => !p)}
         >
-          {(showAllReviews ? MOCK_REVIEWS : MOCK_REVIEWS.slice(0, 2)).map(
-            (r) => (
-              <ReviewCard key={r.id} review={r} compact={!showAllReviews} />
-            )
+          {reviews.length > 0 ? (
+            (showAllReviews ? reviews : reviews.slice(0, 2)).map((r) => (
+                <ReviewCard key={r.id} review={r} compact={!showAllReviews} />
+            ))
+          ) : (
+            <Text style={{ color: C.muted, fontSize: 13, fontStyle: "italic" }}>
+                No reviews yet — be the first!
+            </Text>
           )}
         </Section>
 
@@ -709,23 +676,36 @@ const EpisodeCard = ({ route, navigation }) => {
                 !reviewText.trim() && styles.submitBtnDisabled,
               ]}
               disabled={!reviewText.trim()}
-              onPress={() => {
-                // TODO: save review to Firebase
-                // await addDoc(
-                //   collection(db, "shows", String(showId), "episodes", String(episodeId), "reviews"),
-                //   {
-                //     uid: auth.currentUser.uid,
-                //     rating: myRating,
-                //     text: reviewText.trim(),
-                //     createdAt: serverTimestamp(),
-                //     likes: 0,
-                //   }
-                // );
-                console.log("Submit episode review:", {
-                  myRating,
-                  reviewText,
-                });
-                setReviewText("");
+              onPress={async () => {
+                const user = auth.currentUser;
+                if (!user || !reviewText.trim()) return;
+                try {
+                    await addDoc(
+                    collection(db, "shows", String(showId), "episodes", String(episodeId), "reviews"),
+                    {
+                        uid: user.uid,
+                        displayName: (await getDoc(doc(db, "users", user.uid))).data()?.displayName ?? "Anonymous",
+                        rating: myRating,
+                        text: reviewText.trim(),
+                        createdAt: serverTimestamp(),
+                        likes: 0,
+                    }
+                    );
+                    await writeDiaryEntry(
+                    showId, showName, episodeId, episodeName,
+                    seasonNumber, episode?.number, myRating, reviewText.trim()
+                    );
+                    setReviews((prev) => [...prev, {
+                    id: Date.now().toString(),
+                    displayName: auth.currentUser?.displayName ?? "Anonymous",
+                    rating: myRating,
+                    text: reviewText.trim(),
+                    likes: 0,
+                    }]);
+                    setReviewText("");
+                } catch (err) {
+                    console.error("Episode review submit error:", err);
+                }
               }}
             >
               <Text style={styles.submitBtnText}>Post Review</Text>
