@@ -149,7 +149,7 @@ const UserResult = ({ user, followed, onToggleFollow }) => (
   </TouchableOpacity>
 );
 
-// ─── Screen ───────────────────────────────────────────────────────────────────
+// ─── Screen ──────────────────────────────────────────────────────────────────
 
 const Search = () => {
   const [searchText, setSearchText] = useState("");
