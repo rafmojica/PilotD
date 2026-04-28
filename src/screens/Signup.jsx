@@ -48,6 +48,7 @@ const Signup = ({ navigation }) => {
         followerCount: 0,
         followingCount: 0,
         createdAt: serverTimestamp(),
+        avatarColor: ["#52B788", "#F59E0B", "#EF4444", "#8B5CF6", "#0EA5E9"][Math.floor(Math.random() * 5)],
       });
 
       // Create a Default watchlist
