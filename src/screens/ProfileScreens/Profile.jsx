@@ -207,28 +207,45 @@ const Profile = ({ navigation }) => {
 
         {/* ── Header ── */}
         <View style={styles.header}>
-          <View style={styles.headerTop}>
-            {/* Avatar */}
-            <InitialsAvatar
-              name={user?.displayName}
-              size={64}
-              color={user?.avatarColor}
-              style={{ borderWidth: 2, borderColor: "#52B788" }}
-            />
-
-            <View style={styles.headerInfo}>
-              <Text style={styles.displayName}>{user?.displayName}</Text>
-              <Text style={styles.username}>{user?.username}</Text>
-              {user?.bio ? (
-                <Text style={styles.bio}>{user.bio}</Text>
-              ) : null}
-            </View>
-
-            <TouchableOpacity style={styles.editBtn}>
-              <Text style={styles.editBtnText}>Edit</Text>
-            </TouchableOpacity>
+          <InitialsAvatar
+            name={user?.displayName}
+            size={70}
+            color={user?.avatarColor}
+            style={{ borderWidth: 2, borderColor: "#52B788" }}
+          />
+          <View style={styles.headerInfo}>
+            <Text style={styles.displayName}>{user?.displayName}</Text>
+            <Text style={styles.username}>@{user?.username}</Text>
+            {user?.bio ? (
+              <Text style={styles.bio}>{user.bio}</Text>
+            ) : null}
           </View>
         </View>
+
+        {/* ── Profile Stats ── */}
+        <View style={styles.profileStats}>
+          <View style={styles.profileStatItem}>
+            <Text style={styles.profileStatNum}>{counts.showsCount}</Text>
+            <Text style={styles.profileStatLabel}>Shows</Text>
+          </View>
+          <View style={styles.profileStatItem}>
+            <Text style={styles.profileStatNum}>{counts.reviewsCount}</Text>
+            <Text style={styles.profileStatLabel}>Reviews</Text>
+          </View>
+          <View style={styles.profileStatItem}>
+            <Text style={styles.profileStatNum}>{counts.followersCount}</Text>
+            <Text style={styles.profileStatLabel}>Followers</Text>
+          </View>
+          <View style={styles.profileStatItem}>
+            <Text style={styles.profileStatNum}>{counts.followingCount}</Text>
+            <Text style={styles.profileStatLabel}>Following</Text>
+          </View>
+        </View>
+
+        {/* ── Edit Profile Button ── */}
+        <TouchableOpacity style={styles.editProfileBtn}>
+          <Text style={styles.editProfileBtnText}>Edit Profile</Text>
+        </TouchableOpacity>
 
         {/* ── Recent Activity ── */}
         <View style={styles.section}>
@@ -353,43 +370,65 @@ const styles = StyleSheet.create({
   // Header
   header: {
     paddingHorizontal: 20,
-    paddingTop: 18,
-    paddingBottom: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: C.border,
-  },
-  headerTop: {
+    paddingTop: 20,
+    paddingBottom: 0,
     flexDirection: "row",
+    gap: 16,
     alignItems: "flex-start",
-    gap: 14,
   },
   headerInfo: { flex: 1 },
   displayName: {
-    fontSize: 20,
-    fontWeight: "800",
+    fontSize: 22,
+    fontWeight: "700",
     color: C.text,
-    letterSpacing: -0.3,
+    marginBottom: 2,
   },
   username: {
     fontSize: 13,
-    color: C.subtext,
-    marginTop: 2,
-    fontWeight: "500",
+    color: C.accent,
+    marginBottom: 6,
   },
   bio: {
-    fontSize: 12,
-    color: C.subtext,
-    marginTop: 5,
-    lineHeight: 17,
+    fontSize: 13,
+    color: "#95D5B2",
+    lineHeight: 19,
   },
-  editBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 9,
+
+  // Profile stats bar
+  profileStats: {
+    flexDirection: "row",
+    gap: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+  profileStatItem: { alignItems: "center" },
+  profileStatNum: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: C.text,
+  },
+  profileStatLabel: {
+    fontSize: 11,
+    color: "#40916C",
+    marginTop: 2,
+  },
+
+  // Edit Profile button
+  editProfileBtn: {
+    marginHorizontal: 20,
+    marginBottom: 16,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: "transparent",
     borderWidth: 1,
-    borderColor: C.border2,
+    borderColor: "#40916C",
+    alignItems: "center",
   },
-  editBtnText: { fontSize: 12, color: C.subtext, fontWeight: "600" },
+  editProfileBtnText: {
+    color: "#95D5B2",
+    fontSize: 14,
+    fontWeight: "500",
+  },
 
   // Sections
   section: {
