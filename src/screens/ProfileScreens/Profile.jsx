@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import { signOut } from "firebase/auth";
 import { auth, db } from "../../config/firebase";
 import { doc, getDoc, collection, query, orderBy, limit, getDocs } from "firebase/firestore";
 import Stars from "../../components/Stars";
+import { useFocusEffect } from "@react-navigation/native";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 // Same palette as PublicLists.jsx — keep these in sync across screens
@@ -183,7 +184,11 @@ const Profile = ({ navigation }) => {
     }
   }, []);
 
-  useEffect(() => { fetchAll(); }, [fetchAll]);
+  useFocusEffect(
+    useCallback(() => {
+      fetchAll();
+    }, [fetchAll])
+  );
 
   if (loading) {
     return (

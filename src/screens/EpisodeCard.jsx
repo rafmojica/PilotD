@@ -12,7 +12,7 @@ import {
   TextInput,
   Modal,
 } from "react-native";
-import { doc, getDoc, runTransaction } from "firebase/firestore";
+import { doc, getDoc, runTransaction, collection, addDoc, setDoc, getDocs, query, where, limit, serverTimestamp } from "firebase/firestore";
 import { db, auth } from "../config/firebase";
 import Stars from "../components/Stars";
 
@@ -88,6 +88,48 @@ const submitEpisodeRating = async (showId, episodeId, newRating, prevRating) => 
     String(episodeId)
   );
   const hadPrev = prevRating > 0;
+
+const writeDiaryEntry = async (showId, showName, episodeId, episodeName, seasonNumber, episodeNumber, rating, reviewText) => {
+  const user = auth.currentUser;
+  if (!user) return;
+
+  const existingQuery = await getDocs(
+    query(
+      collection(db, "users", user.uid, "diary"),
+      where("episodeId", "==", episodeId),
+      where("type", "==", "episode"),
+      limit(1)
+    )
+  );
+
+  const entryData = {
+    showId,
+    showName,
+    episodeId,
+    episodeName,
+    type: "episode",
+    seasonNumber,
+    episodeNumber,
+    rating,
+    review: reviewText ?? null,
+    watchedDate: serverTimestamp(),
+    rewatch: !existingQuery.empty,
+    liked: false,
+    updatedAt: serverTimestamp(),
+  };
+
+  if (!existingQuery.empty) {
+    await setDoc(
+      doc(db, "users", user.uid, "diary", existingQuery.docs[0].id),
+      entryData
+    );
+  } else {
+    await addDoc(collection(db, "users", user.uid, "diary"), {
+      ...entryData,
+      createdAt: serverTimestamp(),
+    });
+  }
+};
 
   await runTransaction(db, async (transaction) => {
     const epDoc = await transaction.get(epRef);
