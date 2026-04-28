@@ -23,6 +23,8 @@ import Diary from "./src/screens/ProfileScreens/Diary";
 import Lists from "./src/screens/ProfileScreens/Lists";
 import TotpSetup from "./src/screens/TotpSetup";
 
+import ShowCard from "./src/screens/ShowCard";
+
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 const ActivityStack = createNativeStackNavigator();
@@ -120,6 +122,7 @@ const App = () => {
             <Stack.Screen name="Login" component={Login} />
           </>
         )}
+        <Stack.Screen name="ShowCard" component={ShowCard} />
       </Stack.Navigator>
     </NavigationContainer>
   );
