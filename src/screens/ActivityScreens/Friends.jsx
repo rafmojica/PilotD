@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import InitialsAvatar from "../../components/InitialsAvatar";
 import FadeInView from "../../components/FadeInView";
+import Svg, { Path } from "react-native-svg";
 
 // ─── Mock Data ────────────────────────────────────────────────────────────────
 
@@ -148,8 +149,8 @@ const getActivityLabel = (item) => {
       return item.show.episode
         ? `watched S${item.show.season}E${item.show.episode} of`
         : item.show.season
-        ? `finished Season ${item.show.season} of`
-        : "watched";
+          ? `finished Season ${item.show.season} of`
+          : "watched";
     case "reviewed":
       return "reviewed";
     case "added_to_list":
@@ -177,7 +178,13 @@ const ActivityItem = ({ item }) => {
   const showThumb = item.type !== "added_to_list" && item.show?.posterUrl;
 
   return (
-    <Pressable style={({ pressed }) => [styles.item, pressed && { backgroundColor: "rgba(82,183,136,0.05)" }]} onPress={() => {}}>
+    <Pressable
+      style={({ pressed }) => [
+        styles.item,
+        pressed && { backgroundColor: "rgba(82,183,136,0.05)" },
+      ]}
+      onPress={() => {}}
+    >
       <InitialsAvatar
         name={item.friend.displayName}
         size={38}
@@ -209,21 +216,22 @@ const ActivityItem = ({ item }) => {
 
         <View style={styles.footer}>
           <TouchableOpacity style={styles.footerBtn}>
-            <Text style={[styles.footerIcon, { color: C.rose }]}>♥</Text>
+            <Svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={C.rose} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <Path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+            </Svg>
             <Text style={styles.footerCount}>{item.likeCount}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.footerBtn}>
-            <Text style={styles.footerIcon}>💬</Text>
+            <Svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <Path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            </Svg>
             <Text style={styles.footerCount}>{item.commentCount}</Text>
           </TouchableOpacity>
         </View>
       </View>
 
       {showThumb && (
-        <Image
-          source={{ uri: item.show.posterUrl }}
-          style={styles.thumb}
-        />
+        <Image source={{ uri: item.show.posterUrl }} style={styles.thumb} />
       )}
     </Pressable>
   );
@@ -241,8 +249,20 @@ const Friends = () => {
       <FadeInView>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Activity</Text>
+          {/* BELL ICON */}
           <View style={styles.bellWrap}>
-            <Text style={styles.bell}>🔔</Text>
+            <Svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#95D5B2"
+              strokeWidth="2"
+              strokeLinecap="round"
+            >
+              <Path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+              <Path d="M13.73 21a2 2 0 0 1-3.46 0" />
+            </Svg>
             <View style={styles.bellDot} />
           </View>
         </View>

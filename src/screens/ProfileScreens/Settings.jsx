@@ -12,6 +12,14 @@ import {
 import { signOut } from "firebase/auth";
 import { auth, db } from "../../config/firebase";
 import { doc, getDoc } from "firebase/firestore";
+import Svg, {
+  Circle,
+  Line,
+  Path,
+  Polygon,
+  Polyline,
+  Rect,
+} from "react-native-svg";
 
 const C = {
   bg: "#081C15",
@@ -31,7 +39,7 @@ const SectionLabel = ({ label }) => (
 );
 
 const SettingsRow = ({
-  emoji,
+  icon,
   iconBg,
   label,
   sub,
@@ -47,7 +55,7 @@ const SettingsRow = ({
   >
     <View style={styles.rowLeft}>
       <View style={[styles.iconBg, { backgroundColor: iconBg }]}>
-        <Text style={{ fontSize: 16 }}>{emoji}</Text>
+        {icon}
       </View>
       <View style={{ flex: 1 }}>
         <Text style={styles.rowLabel}>{label}</Text>
@@ -99,7 +107,20 @@ const Settings = ({ navigation }) => {
         <SectionLabel label="Account" />
 
         <SettingsRow
-          emoji="✉️"
+          icon={
+            <Svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#52B788"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+            >
+              <Rect x="2" y="4" width="20" height="16" rx="2" />
+              <Polyline points="22,6 12,13 2,6" />
+            </Svg>
+          }
           iconBg="rgba(82,183,136,0.12)"
           label="Email Address"
           sub={user?.email ?? "—"}
@@ -107,7 +128,21 @@ const Settings = ({ navigation }) => {
         />
 
         <SettingsRow
-          emoji="🔒"
+          icon={
+            <Svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#F4A827"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+            >
+              <Rect x="5" y="11" width="14" height="10" rx="2" />
+              <Path d="M8 11V7a4 4 0 0 1 8 0v4" />
+              <Circle cx="12" cy="16" r="1" fill="#F4A827" />
+            </Svg>
+          }
           iconBg={
             totpEnabled ? "rgba(82,183,136,0.15)" : "rgba(244,168,39,0.12)"
           }
@@ -147,7 +182,19 @@ const Settings = ({ navigation }) => {
         <SectionLabel label="Subscription" />
 
         <SettingsRow
-          emoji="⭐"
+          icon={
+            <Svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#C4788A"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+            >
+              <Polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+            </Svg>
+          }
           iconBg="rgba(196,120,138,0.12)"
           label="PilotD Pro"
           sub="Manage your plan"
@@ -165,7 +212,20 @@ const Settings = ({ navigation }) => {
         />
 
         <SettingsRow
-          emoji="💳"
+          icon={
+            <Svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#52B788"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+            >
+              <Rect x="1" y="4" width="22" height="16" rx="2" />
+              <Line x1="1" y1="10" x2="23" y2="10" />
+            </Svg>
+          }
           iconBg="rgba(82,183,136,0.08)"
           label="Billing & Payments"
           sub="Payment methods, history"
@@ -175,7 +235,21 @@ const Settings = ({ navigation }) => {
         <SectionLabel label="More" />
 
         <SettingsRow
-          emoji="ℹ️"
+          icon={
+            <Svg
+              width="18"
+              height="18"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#95D5B2"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+            >
+              <Circle cx="12" cy="12" r="10" />
+              <Line x1="12" y1="8" x2="12" y2="12" />
+              <Line x1="12" y1="16" x2="12.01" y2="16" />
+            </Svg>
+          }
           iconBg="rgba(82,183,136,0.08)"
           label="About PilotD"
           onPress={() => {}}
@@ -237,7 +311,7 @@ const styles = StyleSheet.create({
     borderBottomColor: C.border,
   },
   backBtn: { flexDirection: "row", alignItems: "center", gap: 4, width: 80 },
-  backChevron: { fontSize: 22, color: C.accent, lineHeight: 26 },
+  backChevron: { fontSize: 22, color: C.accent, lineHeight: 22, includeFontPadding: false },
   backLabel: { fontSize: 14, color: C.accent, fontWeight: "500" },
   title: {
     fontFamily: "DMSerifDisplay_400Regular",

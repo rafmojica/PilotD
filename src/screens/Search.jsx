@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import Svg, { Circle, Line, Path } from "react-native-svg";
 import FadeInView from "../components/FadeInView";
 import {
   View,
@@ -252,7 +253,10 @@ const Search = () => {
 
       <View style={styles.searchWrap}>
         <View style={styles.searchBar}>
-          <Text style={styles.searchIcon}>🔍</Text>
+          <Svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth="2" strokeLinecap="round">
+            <Circle cx="11" cy="11" r="8" />
+            <Line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </Svg>
           <TextInput
             style={styles.input}
             placeholder="Shows, people…"
@@ -271,7 +275,9 @@ const Search = () => {
               onPress={() => setSearchText("")}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
-              <Text style={styles.clearBtn}>✕</Text>
+              <Svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth="2.5" strokeLinecap="round">
+                <Path d="M18 6L6 18M6 6l12 12" />
+              </Svg>
             </TouchableOpacity>
           )}
         </View>
@@ -375,14 +381,11 @@ const styles = StyleSheet.create({
     paddingVertical: 11,
     gap: 10,
   },
-  searchIcon: { fontSize: 16 },
   input: {
     flex: 1,
     color: C.text,
     fontSize: 15,
   },
-  clearBtn: { color: C.muted, fontSize: 15, paddingLeft: 4 },
-
   sectionLabel: {
     paddingHorizontal: 20,
     paddingBottom: 6,
