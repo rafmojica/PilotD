@@ -13,6 +13,7 @@ import {
   Alert,
   ActivityIndicator,
 } from "react-native";
+import * as ImagePicker from "expo-image-picker";
 import { updateProfile } from "firebase/auth";
 import { doc, updateDoc, getDoc } from "firebase/firestore";
 import { auth, db } from "../../config/firebase";
@@ -31,11 +32,23 @@ const C = {
   placeholder: "#2D6A4F",
 };
 
-const Field = ({ label, value, onChangeText, placeholder, multiline, disabled, hint }) => (
+const Field = ({
+  label,
+  value,
+  onChangeText,
+  placeholder,
+  multiline,
+  disabled,
+  hint,
+}) => (
   <View style={styles.field}>
     <Text style={styles.fieldLabel}>{label}</Text>
     <TextInput
-      style={[styles.fieldInput, multiline && styles.fieldInputMulti, disabled && styles.fieldInputDisabled]}
+      style={[
+        styles.fieldInput,
+        multiline && styles.fieldInputMulti,
+        disabled && styles.fieldInputDisabled,
+      ]}
       value={value}
       onChangeText={onChangeText}
       placeholder={placeholder}
@@ -55,6 +68,8 @@ const EditProfile = ({ navigation }) => {
   const [bio, setBio] = useState("");
   const [location, setLocation] = useState("");
   const [pronouns, setPronouns] = useState("");
+  const [photoURL, setPhotoURL] = useState(null);
+  const [pendingPhotoUri, setPendingPhotoUri] = useState(null);
   const [saving, setSaving] = useState(false);
 
   useFocusEffect(
@@ -69,9 +84,70 @@ const EditProfile = ({ navigation }) => {
         setBio(d.bio ?? "");
         setLocation(d.location ?? "");
         setPronouns(d.pronouns ?? "");
+
+        // If Firestore has no photoURL but Firebase Auth does, sync it
+        const resolvedPhoto = d.photoURL ?? auth.currentUser?.photoURL ?? null;
+        setPhotoURL(resolvedPhoto);
+        setPendingPhotoUri(null);
+
+        if (!d.photoURL && auth.currentUser?.photoURL) {
+          updateDoc(doc(db, "users", uid), {
+            photoURL: auth.currentUser.photoURL,
+          });
+        }
       });
-    }, [])
+    }, []),
   );
+
+  const handlePickPhoto = async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert(
+        "Permission needed",
+        "Allow photo library access to change your profile photo.",
+      );
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.7,
+    });
+    if (!result.canceled && result.assets?.[0]?.uri) {
+      setPendingPhotoUri(result.assets[0].uri);
+    }
+  };
+
+  // using Cloudinary (third party app for uploading photos)
+  const uploadPhoto = async (uid, localUri) => {
+    const response = await fetch(localUri);
+    const blob = await response.blob();
+
+    const formData = new FormData();
+    formData.append("file", blob, `avatar_${uid}.jpg`);
+    formData.append("public_id", `avatars/${uid}_${Date.now()}`);
+
+    const uploadResponse = await fetch(
+      `https://api.cloudinary.com/v1_1/dyrhenmlt/image/upload?upload_preset=pilotd_profile_photos`,
+      {
+        method: "POST",
+        body: formData,
+        headers: {
+          Accept: "application/json",
+        },
+      },
+    );
+
+    const data = await uploadResponse.json();
+    console.log("Cloudinary response:", JSON.stringify(data));
+
+    if (!data.secure_url) {
+      throw new Error(data.error?.message || "Upload failed");
+    }
+
+    return data.secure_url;
+  };
 
   const handleSave = async () => {
     const uid = auth.currentUser?.uid;
@@ -83,13 +159,22 @@ const EditProfile = ({ navigation }) => {
     }
     setSaving(true);
     try {
+      let newPhotoURL = photoURL;
+      if (pendingPhotoUri) {
+        newPhotoURL = await uploadPhoto(uid, pendingPhotoUri);
+      }
+
       await Promise.all([
-        updateProfile(auth.currentUser, { displayName: trimmedName }),
+        updateProfile(auth.currentUser, {
+          displayName: trimmedName,
+          ...(newPhotoURL ? { photoURL: newPhotoURL } : {}),
+        }),
         updateDoc(doc(db, "users", uid), {
           displayName: trimmedName,
           bio: bio.trim(),
           location: location.trim(),
           pronouns: pronouns.trim(),
+          ...(newPhotoURL ? { photoURL: newPhotoURL } : {}),
         }),
       ]);
       navigation.goBack();
@@ -100,12 +185,17 @@ const EditProfile = ({ navigation }) => {
     }
   };
 
+  const avatarUri = pendingPhotoUri ?? photoURL;
+
   return (
     <SafeAreaView style={styles.screen}>
       <StatusBar barStyle="light-content" backgroundColor={C.bg} />
 
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.backBtn}
+        >
           <Text style={styles.backChevron}>‹</Text>
           <Text style={styles.backLabel}>Profile</Text>
         </TouchableOpacity>
@@ -128,16 +218,34 @@ const EditProfile = ({ navigation }) => {
         behavior={Platform.OS === "ios" ? "padding" : undefined}
         keyboardVerticalOffset={0}
       >
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scroll}
+        >
           <View style={styles.avatarSection}>
-            <InitialsAvatar
-              name={displayName || "?"}
-              size={80}
-              style={{ borderWidth: 2.5, borderColor: C.accent }}
-            />
-            <TouchableOpacity style={styles.changePhotoBtn} activeOpacity={0.7}>
-              <Text style={styles.changePhotoText}>Change Photo</Text>
+            <TouchableOpacity
+              onPress={handlePickPhoto}
+              activeOpacity={0.8}
+              style={styles.avatarWrap}
+            >
+              <InitialsAvatar
+                name={displayName || "?"}
+                photoURL={avatarUri}
+                size={90}
+                style={{ borderWidth: 2.5, borderColor: C.accent }}
+              />
+              <View style={styles.cameraBadge}>
+                <Text style={styles.cameraEmoji}>📷</Text>
+              </View>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handlePickPhoto}
+              activeOpacity={0.7}
+              style={styles.changePhotoBtn}
+            >
+              <Text style={styles.changePhotoText}>
+                {pendingPhotoUri ? "Photo selected ✓" : "Change Photo"}
+              </Text>
             </TouchableOpacity>
           </View>
 
@@ -228,6 +336,23 @@ const styles = StyleSheet.create({
     paddingVertical: 28,
     gap: 12,
   },
+  avatarWrap: {
+    position: "relative",
+  },
+  cameraBadge: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: C.card,
+    borderWidth: 2,
+    borderColor: C.bg,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  cameraEmoji: { fontSize: 13 },
   changePhotoBtn: {
     paddingHorizontal: 16,
     paddingVertical: 6,

@@ -1,7 +1,15 @@
-import React from "react";
-import { View, Text } from "react-native";
+import React, { useEffect, useState } from "react";
+import { View, Text, Image } from "react-native";
 
-const PALETTE = ["#52B788", "#40916C", "#F59E0B", "#8B5CF6", "#0EA5E9", "#C4788A", "#EF4444"];
+const PALETTE = [
+  "#52B788",
+  "#40916C",
+  "#F59E0B",
+  "#8B5CF6",
+  "#0EA5E9",
+  "#C4788A",
+  "#EF4444",
+];
 
 function getInitials(name) {
   if (!name) return "?";
@@ -20,17 +28,43 @@ function colorFromName(name) {
   return PALETTE[Math.abs(hash) % PALETTE.length];
 }
 
-const InitialsAvatar = ({ name, size = 38, color, style }) => {
+const InitialsAvatar = ({ name, size = 38, color, photoURL, style }) => {
   const bgColor = color || colorFromName(name);
   const fontSize = Math.round(size * 0.38);
+  const circleStyle = {
+    width: size,
+    height: size,
+    borderRadius: size / 2,
+  };
+
+  const [imgError, setImgError] = useState(false);
+
+  // reset error state when photoURL changes.
+  useEffect(() => {
+    setImgError(false);
+  }, [photoURL]);
+
+  if (photoURL && !imgError) {
+    return (
+      <Image
+        source={{
+          uri: photoURL,
+          headers: {
+            Referer: "https://myapp.com",
+          },
+        }}
+        style={[circleStyle, { backgroundColor: bgColor }, style]}
+        resizeMode="cover"
+        onError={() => setImgError(true)}
+      />
+    );
+  }
 
   return (
     <View
       style={[
+        circleStyle,
         {
-          width: size,
-          height: size,
-          borderRadius: size / 2,
           backgroundColor: bgColor,
           justifyContent: "center",
           alignItems: "center",

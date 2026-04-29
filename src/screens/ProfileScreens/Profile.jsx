@@ -207,6 +207,7 @@ const Profile = ({ navigation }) => {
         <View style={styles.header}>
           <InitialsAvatar
             name={user?.displayName}
+            photoURL={user?.photoURL}
             size={70}
             color={user?.avatarColor}
             style={{ borderWidth: 2, borderColor: "#52B788" }}

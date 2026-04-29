@@ -3,7 +3,7 @@ import { Platform } from "react-native";
 import * as Google from "expo-auth-session/providers/google";
 import * as WebBrowser from "expo-web-browser";
 import { GoogleAuthProvider, signInWithCredential, signInWithPopup } from "firebase/auth";
-import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, setDoc, serverTimestamp, updateDoc } from "firebase/firestore";
 import { auth, db } from "../config/firebase";
 
 WebBrowser.maybeCompleteAuthSession();
@@ -33,6 +33,11 @@ const createUserDocIfNeeded = async (user) => {
       isWatchlist: true,
       createdAt: serverTimestamp(),
     });
+  } else {
+     const data = snap.data();
+    if (!data.photoURL && user.photoURL) {
+      await updateDoc(userRef, { photoURL: user.photoURL });
+    }
   }
 };
 

@@ -44,7 +44,7 @@ const Signup = ({ navigation }) => {
         username: username.trim().toLowerCase(),
         displayName: displayName.trim(),
         bio: "",
-        photoURL: "",
+        photoURL: user.photoURL ?? null,
         followerCount: 0,
         followingCount: 0,
         createdAt: serverTimestamp(),
