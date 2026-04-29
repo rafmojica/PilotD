@@ -21,9 +21,9 @@ const createUserDocIfNeeded = async (user) => {
       .replace(/[^a-z0-9]/g, "");
     await setDoc(userRef, {
       username: baseUsername,
-      displayName: user.displayName || baseUsername,
+      displayName: freshUser.displayName || baseUsername,
       bio: "",
-      photoURL: user.photoURL || "",
+      photoURL: freshUser.photoURL || "",
       followerCount: 0,
       followingCount: 0,
       totpEnabled: false,

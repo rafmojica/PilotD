@@ -28,6 +28,7 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { db, auth } from "../config/firebase.js";
+import InitialsAvatar from "../components/InitialsAvatar";
 
 // ─── API ──────────────────────────────────────────────────────────────────────
 
@@ -132,15 +133,12 @@ const ShowResult = ({ item, onPress }) => {
 
 const UserResult = ({ user, followed, followLoading, onToggleFollow, onPress }) => (
   <TouchableOpacity style={styles.resultRow} activeOpacity={0.75} onPress={onPress}>
-    {user.photoURL ? (
-      <Image source={{ uri: user.photoURL }} style={styles.personThumb} resizeMode="cover" />
-    ) : (
-      <View style={[styles.personThumb, styles.personPlaceholder]}>
-        <Text style={styles.posterInitials}>
-          {initials(user.displayName || user.username)}
-        </Text>
-      </View>
-    )}
+    <InitialsAvatar
+      name={user.displayName || user.username}
+      photoURL={user.photoURL}
+      size={42}
+      style={{ flexShrink: 0 }}
+    />
     <View style={styles.resultInfo}>
       <Text style={styles.resultName} numberOfLines={1}>{user.displayName}</Text>
       <Text style={styles.resultSub} numberOfLines={1}>@{user.username}</Text>
