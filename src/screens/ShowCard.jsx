@@ -81,7 +81,7 @@ const submitShowRating = async (showId, newRating, prevRating) => {
   });
 };
 
-const writeDiaryEntry = async (showId, showName, rating, reviewText) => {
+const writeDiaryEntry = async (showId, showName, rating, reviewText, likedValue = false) => {
   const user = auth.currentUser;
   if (!user) return;
   const existingQuery = await getDocs(
@@ -95,7 +95,7 @@ const writeDiaryEntry = async (showId, showName, rating, reviewText) => {
     review: reviewText ?? null,
     watchedDate: serverTimestamp(),
     rewatch: !existingQuery.empty,
-    liked: false,
+    liked: likedValue,
     updatedAt: serverTimestamp(),
   };
   if (!existingQuery.empty) {
@@ -312,8 +312,7 @@ const ShowCard = ({ route, navigation }) => {
   const [showAllReviews, setShowAllReviews] = useState(false);
   const [showRateModal, setShowRateModal] = useState(false);
   const [myRating, setMyRating] = useState(0);
-  const [hearted, setHearted] = useState(false);    // saved/watchlisted
-  const [liked, setLiked] = useState(false);         // liked (thumbs up)
+  const [liked, setLiked] = useState(false);         // liked (Hearted)
   const [reviewText, setReviewText] = useState("");
   const [expandDescription, setExpandDescription] = useState(false);
 
@@ -350,12 +349,75 @@ const ShowCard = ({ route, navigation }) => {
       setReviews(reviewsSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
       if (userRatingSnap?.exists()) setMyRating(userRatingSnap.data().rating);
 
+      if (auth.currentUser) {
+        const diarySnap = await getDocs(
+          query(
+            collection(db, "users", auth.currentUser.uid, "diary"),
+            where("showId", "==", showId),
+            where("type", "==", "show"),
+            limit(1)
+          )
+        );
+        if (!diarySnap.empty) {
+          setLiked(diarySnap.docs[0].data().liked ?? false);
+        }
+      }
+
     } catch (err) {
       console.error("[ShowCard] fetch error:", err);
     } finally {
       setLoading(false);
     }
   }, [showId]);
+
+  const handleInlineRate = async (newRating) => {
+    setPrevRating(myRating);
+    setMyRating(newRating);
+    await submitShowRating(showId, newRating, myRating);
+    await writeDiaryEntry(showId, show.name, newRating, null, liked);
+  };
+
+  const handleToggleLiked = async () => {
+    const user = auth.currentUser;
+    if (!user) return;
+    const newLiked = !liked;
+    setLiked(newLiked);
+    try {
+      const existing = await getDocs(
+        query(
+          collection(db, "users", user.uid, "diary"),
+          where("showId", "==", showId),
+          where("type", "==", "show"),
+          limit(1)
+        )
+      );
+      if (!existing.empty) {
+        // Update existing entry
+        await setDoc(
+          doc(db, "users", user.uid, "diary", existing.docs[0].id),
+          { liked: newLiked },
+          { merge: true }
+        );
+      } else {
+        // No diary entry yet — create one with just the like
+        await addDoc(collection(db, "users", user.uid, "diary"), {
+          showId,
+          showName: show.name,
+          type: "show",
+          rating: myRating,
+          review: null,
+          liked: newLiked,
+          watchedDate: serverTimestamp(),
+          rewatch: false,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+      }
+    } catch (err) {
+      console.error("Like toggle error:", err);
+      setLiked(!newLiked);
+    }
+  };
 
   useEffect(() => { fetchShowData(); }, [fetchShowData]);
 
@@ -391,6 +453,12 @@ const ShowCard = ({ route, navigation }) => {
   if (!show) {
     return (
       <SafeAreaView style={styles.loadingScreen}>
+        <TouchableOpacity
+          style={[styles.backBtn, { position: "relative", top: 0, left: 0, marginBottom: 16 }]}
+          onPress={() => navigation?.goBack()}
+        >
+          <Text style={styles.backBtnText}>‹ Back</Text>
+        </TouchableOpacity>
         <Text style={styles.loadingText}>Show not found.</Text>
       </SafeAreaView>
     );
@@ -467,15 +535,15 @@ const ShowCard = ({ route, navigation }) => {
 
         {/* ── Action buttons ── */}
         <View style={styles.actionRow}>
-          {/* Heart / Save */}
+          {/* Like / Heart */}
           <TouchableOpacity
-            style={[styles.actionBtn, hearted && { backgroundColor: C.heartSoft, borderColor: C.heart + "60" }]}
-            onPress={() => setHearted((p) => !p)}
+            style={[styles.actionBtn, liked && { backgroundColor: C.heartSoft, borderColor: C.heart + "60" }]}
+            onPress={handleToggleLiked}
           >
-            <Text style={[styles.actionIcon, { color: hearted ? C.heart : C.subtext }]}>
-              {hearted ? "♥" : "♡"}
+            <Text style={[styles.actionIcon, { color: liked ? C.heart : C.subtext }]}>
+              {liked ? "♥" : "♡"}
             </Text>
-            <Text style={[styles.actionLabel, hearted && { color: C.heart }]}>Save</Text>
+            <Text style={[styles.actionLabel, liked && { color: C.heart }]}>Like</Text>
           </TouchableOpacity>
 
           {/* Rate */}
@@ -487,17 +555,6 @@ const ShowCard = ({ route, navigation }) => {
             <Text style={[styles.actionLabel, { color: "#fff" }]}>
               {myRating > 0 ? `${myRating}★` : "Rate"}
             </Text>
-          </TouchableOpacity>
-
-          {/* Like */}
-          <TouchableOpacity
-            style={[styles.actionBtn, liked && { backgroundColor: C.accentSoft, borderColor: C.accent + "60" }]}
-            onPress={() => setLiked((p) => !p)}
-          >
-            <Text style={[styles.actionIcon, { color: liked ? C.accent : C.subtext }]}>
-              {liked ? "👍" : "👍"}
-            </Text>
-            <Text style={[styles.actionLabel, liked && { color: C.accent }]}>Like</Text>
           </TouchableOpacity>
         </View>
 
@@ -529,7 +586,7 @@ const ShowCard = ({ route, navigation }) => {
         {/* ── Rate it yourself ── */}
         <Section title="Your Rating">
           <View style={styles.yourRatingBlock}>
-            <Stars rating={myRating} size={28} interactive onRate={setMyRating} />
+            <Stars rating={myRating} size={28} interactive onRate={handleInlineRate} />
             {myRating > 0 ? (
               <Text style={styles.yourRatingLabel}>{myRating} / 5 stars</Text>
             ) : (
@@ -716,7 +773,7 @@ const ShowCard = ({ route, navigation }) => {
                     createdAt: serverTimestamp(),
                     likes: 0,
                   });
-                  await writeDiaryEntry(showId, show.name, myRating, reviewText.trim());
+                  await writeDiaryEntry(showId, show.name, myRating, reviewText.trim(), liked);
                   setReviewText("");
                 } catch (err) {
                   console.error("Review submit error:", err);
@@ -748,7 +805,7 @@ const ShowCard = ({ route, navigation }) => {
           setMyRating(newRating);
           setShowRateModal(false);
           await submitShowRating(showId, newRating, myRating);
-          await writeDiaryEntry(showId, show.name, newRating, null);
+          await writeDiaryEntry(showId, show.name, newRating, null, liked);
         }}
         showTitle={show.name}
       />
