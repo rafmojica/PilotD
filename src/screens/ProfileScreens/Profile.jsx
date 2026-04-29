@@ -54,7 +54,7 @@ const C = {
 };
 
 const RATING_RANGE = ["5", "4.5", "4", "3.5", "3", "2.5", "2", "1"];
-const TABS = ["Shows", "Reviews", "Likes", "Tags", "Following"];
+const TABS = ["Reviews", "Likes", "Tags", "Following"];
 
 // ─── Rating Distribution (horizontal bars) ───────────────────────────────────
 
@@ -163,37 +163,6 @@ const ActivityCard = ({ rating, posterUri, onPress }) => (
 );
 
 // ─── Profile Tabs ─────────────────────────────────────────────────────────────
-
-const ShowsGrid = ({ shows, posters, navigation }) => (
-  <View style={styles.showsGrid}>
-    {shows.map((s, i) => (
-      <TouchableOpacity
-        key={s.showId}
-        style={styles.gridThumb}
-        activeOpacity={0.8}
-        onPress={() => navigation.navigate("ShowCard", { showId: s.showId })}
-      >
-        {posters[s.showId] ? (
-          <Image
-            source={{ uri: posters[s.showId] }}
-            style={StyleSheet.absoluteFill}
-            resizeMode="cover"
-          />
-        ) : (
-          <View
-            style={[
-              StyleSheet.absoluteFill,
-              {
-                backgroundColor:
-                  i % 3 === 0 ? "#0d2b1d" : i % 3 === 1 ? "#1B4332" : "#0f2820",
-              },
-            ]}
-          />
-        )}
-      </TouchableOpacity>
-    ))}
-  </View>
-);
 
 const ReviewsList = ({ entries, posters, navigation }) => {
   if (entries.length === 0) {
@@ -314,7 +283,7 @@ const Profile = ({ navigation }) => {
   const [reviewEntries, setReviewEntries] = useState([]);
   const [likedEntries, setLikedEntries] = useState([]);
   const [followingUsers, setFollowingUsers] = useState([]);
-  const [activeTab, setActiveTab] = useState("Shows");
+  const [activeTab, setActiveTab] = useState("Reviews");
   const [counts, setCounts] = useState({
     showsCount: 0,
     reviewsCount: 0,
@@ -325,6 +294,9 @@ const Profile = ({ navigation }) => {
     likesCount: 0,
     tagsCount: 0,
   });
+
+  const scrollRef = useRef(null);
+  const tabsOffsetY = useRef(0);
 
   const fetchAll = useCallback(async () => {
     const uid = auth.currentUser?.uid;
@@ -455,7 +427,7 @@ const Profile = ({ navigation }) => {
     <SafeAreaView style={styles.screen}>
       <StatusBar barStyle="light-content" backgroundColor={C.bg} />
       <FadeInView>
-        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+        <ScrollView ref={scrollRef} showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
 
           {/* ── Header ── */}
           <View style={styles.header}>
@@ -505,10 +477,17 @@ const Profile = ({ navigation }) => {
               <Text style={styles.profileStatNum}>{counts.followersCount}</Text>
               <Text style={styles.profileStatLabel}>Followers</Text>
             </View>
-            <View style={styles.profileStatItem}>
+            <TouchableOpacity
+              style={styles.profileStatItem}
+              activeOpacity={0.7}
+              onPress={() => {
+                setActiveTab("Following");
+                scrollRef.current?.scrollTo({ y: tabsOffsetY.current, animated: true });
+              }}
+            >
               <Text style={styles.profileStatNum}>{counts.followingCount}</Text>
               <Text style={styles.profileStatLabel}>Following</Text>
-            </View>
+            </TouchableOpacity>
           </View>
 
           {/* ── Edit Profile Button ── */}
@@ -549,6 +528,7 @@ const Profile = ({ navigation }) => {
             showsHorizontalScrollIndicator={false}
             style={styles.tabBar}
             contentContainerStyle={styles.tabBarContent}
+            onLayout={(e) => { tabsOffsetY.current = e.nativeEvent.layout.y; }}
           >
             {TABS.map((tab) => (
               <TouchableOpacity
@@ -566,9 +546,6 @@ const Profile = ({ navigation }) => {
           </ScrollView>
 
           {/* ── Tab Content ── */}
-          {activeTab === "Shows" && (
-            <ShowsGrid shows={ratedShows.slice(0, 18)} posters={posters} navigation={navigation} />
-          )}
           {activeTab === "Reviews" && (
             <ReviewsList entries={reviewEntries} posters={posters} navigation={navigation} />
           )}
@@ -586,19 +563,11 @@ const Profile = ({ navigation }) => {
 
           {/* ── Stats List ── */}
           <View style={styles.statsSection}>
+            <StatRow label="Shows" value={counts.showsCount} onPress={() => navigation.navigate("Diary")} />
+            <View style={styles.divider} />
             <StatRow label="Diary" value={counts.diaryCount} onPress={() => navigation.navigate("Diary")} />
             <View style={styles.divider} />
             <StatRow label="Lists" value={counts.listsCount} onPress={() => navigation.navigate("Lists")} />
-            <View style={styles.divider} />
-            <StatRow label="Shows" value={counts.showsCount} onPress={() => setActiveTab("Shows")} />
-            <View style={styles.divider} />
-            <StatRow label="Reviews" value={counts.reviewsCount} onPress={() => setActiveTab("Reviews")} />
-            <View style={styles.divider} />
-            <StatRow label="Likes" value={counts.likesCount} heart onPress={() => setActiveTab("Likes")} />
-            <View style={styles.divider} />
-            <StatRow label="Following" value={counts.followingCount} onPress={() => setActiveTab("Following")} />
-            <View style={styles.divider} />
-            <StatRow label="Followers" value={counts.followersCount} onPress={() => {}} />
           </View>
 
         </ScrollView>
