@@ -441,6 +441,7 @@ const ShowCard = ({ route, navigation }) => {
   const [showAllReviews, setShowAllReviews] = useState(false);
   const [showRateModal, setShowRateModal] = useState(false);
   const [myRating, setMyRating] = useState(0);
+  const [ratingSaved, setRatingSaved] = useState(false);
   const [hearted, setHearted] = useState(false);
   const [liked, setLiked] = useState(false);
   const [reviewText, setReviewText] = useState("");
@@ -723,9 +724,30 @@ const ShowCard = ({ route, navigation }) => {
         {/* ── Rate it yourself ── */}
         <Section title="Your Rating">
           <View style={styles.yourRatingBlock}>
-            <Stars rating={myRating} size={28} interactive onRate={setMyRating} />
+            <Stars
+              rating={myRating}
+              size={28}
+              interactive
+              onRate={(r) => { setMyRating(r); setRatingSaved(false); }}
+            />
             {myRating > 0 ? (
-              <Text style={styles.yourRatingLabel}>{myRating} / 5 stars</Text>
+              <>
+                <Text style={styles.yourRatingLabel}>{myRating} / 5 stars</Text>
+                <TouchableOpacity
+                  style={[styles.ratingsSaveBtn, ratingSaved && styles.ratingsSaveBtnSaved]}
+                  onPress={async () => {
+                    const prev = prevRating;
+                    setPrevRating(myRating);
+                    await submitShowRating(showId, myRating, prev);
+                    await writeDiaryEntry(showId, show.name, myRating, null);
+                    setRatingSaved(true);
+                  }}
+                >
+                  <Text style={styles.ratingsSaveBtnText}>
+                    {ratingSaved ? "Saved ✓" : "Save Rating"}
+                  </Text>
+                </TouchableOpacity>
+              </>
             ) : (
               <Text style={styles.yourRatingLabel}>Tap a star to rate</Text>
             )}
@@ -1124,6 +1146,14 @@ const styles = StyleSheet.create({
     borderColor: C.border,
   },
   yourRatingLabel: { fontSize: 13, color: C.subtext, fontWeight: "500" },
+  ratingsSaveBtn: {
+    backgroundColor: C.accent,
+    borderRadius: 10,
+    paddingHorizontal: 28,
+    paddingVertical: 9,
+  },
+  ratingsSaveBtnSaved: { backgroundColor: C.muted },
+  ratingsSaveBtnText: { color: "#fff", fontWeight: "700", fontSize: 14 },
 
   // Season picker
   seasonPickerBtn: {
