@@ -174,7 +174,7 @@ const StarRating = ({ rating }) => {
   return <Text style={styles.stars}>{stars.join("")}</Text>;
 };
 
-const ActivityItem = ({ item }) => {
+const ActivityItem = ({ item, onPressUser }) => {
   const showThumb = item.type !== "added_to_list" && item.show?.posterUrl;
 
   return (
@@ -185,15 +185,19 @@ const ActivityItem = ({ item }) => {
       ]}
       onPress={() => {}}
     >
-      <InitialsAvatar
-        name={item.friend.displayName}
-        size={38}
-        style={{ flexShrink: 0, borderWidth: 1.5, borderColor: "#40916C" }}
-      />
+      <TouchableOpacity onPress={() => onPressUser(item.friend)} activeOpacity={0.7}>
+        <InitialsAvatar
+          name={item.friend.displayName}
+          size={38}
+          style={{ flexShrink: 0, borderWidth: 1.5, borderColor: "#40916C" }}
+        />
+      </TouchableOpacity>
 
       <View style={styles.body}>
         <View style={styles.topLine}>
-          <Text style={styles.username}>{item.friend.displayName}</Text>
+          <TouchableOpacity onPress={() => onPressUser(item.friend)} activeOpacity={0.7}>
+            <Text style={styles.username}>{item.friend.displayName}</Text>
+          </TouchableOpacity>
           <Text style={styles.action}> {getActivityLabel(item)} </Text>
           <Text style={styles.showName}>{item.show.title}</Text>
         </View>
@@ -239,8 +243,15 @@ const ActivityItem = ({ item }) => {
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
-const Friends = () => {
+const Friends = ({ navigation }) => {
   const [activities] = useState(MOCK_FRIEND_ACTIVITY);
+
+  const handlePressUser = (friend) => {
+    navigation.navigate("UserProfile", {
+      userId: friend.id,
+      displayName: friend.displayName,
+    });
+  };
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -278,7 +289,9 @@ const Friends = () => {
           <FlatList
             data={activities}
             keyExtractor={(item) => item.id}
-            renderItem={({ item }) => <ActivityItem item={item} />}
+            renderItem={({ item }) => (
+              <ActivityItem item={item} onPressUser={handlePressUser} />
+            )}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{ paddingBottom: 20 }}
           />

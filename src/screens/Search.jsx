@@ -21,6 +21,11 @@ import {
   where,
   limit,
   getDocs,
+  doc,
+  getDoc,
+  setDoc,
+  deleteDoc,
+  serverTimestamp,
 } from "firebase/firestore";
 import { db, auth } from "../config/firebase.js";
 
@@ -125,8 +130,8 @@ const ShowResult = ({ item, onPress }) => {
   );
 };
 
-const UserResult = ({ user, followed, onToggleFollow }) => (
-  <TouchableOpacity style={styles.resultRow} activeOpacity={0.75}>
+const UserResult = ({ user, followed, followLoading, onToggleFollow, onPress }) => (
+  <TouchableOpacity style={styles.resultRow} activeOpacity={0.75} onPress={onPress}>
     {user.photoURL ? (
       <Image source={{ uri: user.photoURL }} style={styles.personThumb} resizeMode="cover" />
     ) : (
@@ -142,24 +147,32 @@ const UserResult = ({ user, followed, onToggleFollow }) => (
     </View>
     <TouchableOpacity
       style={[styles.followBtn, followed && styles.followBtnFollowing]}
-      onPress={onToggleFollow}
+      onPress={(e) => { e.stopPropagation?.(); onToggleFollow(); }}
+      disabled={followLoading}
       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
     >
-      <Text style={[styles.followBtnText, followed && styles.followBtnTextFollowing]}>
-        {followed ? "Following" : "Follow"}
-      </Text>
+      {followLoading ? (
+        <ActivityIndicator size="small" color={followed ? C.accent : "#081C15"} style={{ width: 36 }} />
+      ) : (
+        <Text style={[styles.followBtnText, followed && styles.followBtnTextFollowing]}>
+          {followed ? "Following" : "Follow"}
+        </Text>
+      )}
     </TouchableOpacity>
   </TouchableOpacity>
 );
 
 // ─── Screen ──────────────────────────────────────────────────────────────────
 
-const Search = () => {
+const Search = ({ navigation }) => {
   const [searchText, setSearchText] = useState("");
   const [shows, setShows] = useState([]);
   const [appUsers, setAppUsers] = useState([]);
   const [loading, setLoading] = useState(false);
+  // { [uid]: boolean } — persisted to Firestore
   const [followed, setFollowed] = useState({});
+  // { [uid]: boolean } — per-user in-flight flag
+  const [followLoading, setFollowLoading] = useState({});
   const debounceRef = useRef(null);
 
   useEffect(() => {
@@ -212,7 +225,20 @@ const Search = () => {
             }
           });
         }
-        setAppUsers(results.slice(0, 5));
+        const users = results.slice(0, 5);
+        setAppUsers(users);
+
+        // Check which of the returned users the current user already follows
+        if (currentUid && users.length > 0) {
+          const checks = await Promise.allSettled(
+            users.map((u) => getDoc(doc(db, "users", currentUid, "following", u.uid)))
+          );
+          const init = {};
+          checks.forEach((r, i) => {
+            if (r.status === "fulfilled") init[users[i].uid] = r.value.exists();
+          });
+          setFollowed((prev) => ({ ...prev, ...init }));
+        }
       } catch (err) {
         console.error("[Search] fetch error:", err);
       } finally {
@@ -223,8 +249,31 @@ const Search = () => {
     return () => clearTimeout(debounceRef.current);
   }, [searchText]);
 
-  const toggleFollow = (uid) =>
-    setFollowed((prev) => ({ ...prev, [uid]: !prev[uid] }));
+  const toggleFollow = async (uid) => {
+    const currentUid = auth.currentUser?.uid;
+    if (!currentUid) return;
+
+    const willFollow = !followed[uid];
+    // Optimistic update
+    setFollowed((prev) => ({ ...prev, [uid]: willFollow }));
+    setFollowLoading((prev) => ({ ...prev, [uid]: true }));
+
+    try {
+      const myFollowingRef = doc(db, "users", currentUid, "following", uid);
+      const theirFollowersRef = doc(db, "users", uid, "followers", currentUid);
+      if (willFollow) {
+        const ts = { followedAt: serverTimestamp() };
+        await Promise.all([setDoc(myFollowingRef, ts), setDoc(theirFollowersRef, ts)]);
+      } else {
+        await Promise.all([deleteDoc(myFollowingRef), deleteDoc(theirFollowersRef)]);
+      }
+    } catch (err) {
+      console.error("[Search] follow error:", err);
+      setFollowed((prev) => ({ ...prev, [uid]: !willFollow }));
+    } finally {
+      setFollowLoading((prev) => ({ ...prev, [uid]: false }));
+    }
+  };
 
   const handleShowPress = (show) => {
     Alert.alert(
@@ -313,7 +362,12 @@ const Search = () => {
                 key={user.uid}
                 user={user}
                 followed={!!followed[user.uid]}
+                followLoading={!!followLoading[user.uid]}
                 onToggleFollow={() => toggleFollow(user.uid)}
+                onPress={() => navigation.navigate("UserProfile", {
+                  userId: user.uid,
+                  displayName: user.displayName,
+                })}
               />
             ))}
           </>
