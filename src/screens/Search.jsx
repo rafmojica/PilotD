@@ -13,7 +13,6 @@ import {
   SafeAreaView,
   StatusBar,
   ActivityIndicator,
-  Alert,
 } from "react-native";
 import {
   collection,
@@ -60,7 +59,6 @@ const C = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const stripHtml = (html) => (html ? html.replace(/<[^>]*>/g, "").trim() : "");
 
 const initials = (name = "") =>
   name
@@ -274,17 +272,7 @@ const Search = ({ navigation }) => {
   };
 
   const handleShowPress = (show) => {
-    Alert.alert(
-      show.name,
-      [
-        show.genres?.join(", "),
-        show.premiered?.slice(0, 4),
-        show.summary ? stripHtml(show.summary).slice(0, 120) + "…" : null,
-      ]
-        .filter(Boolean)
-        .join("\n\n"),
-      [{ text: "OK" }]
-    );
+    navigation.navigate("ShowCard", { showId: show.id });
   };
 
   const hasResults = shows.length > 0 || appUsers.length > 0;

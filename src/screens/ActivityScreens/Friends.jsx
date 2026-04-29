@@ -174,7 +174,7 @@ const StarRating = ({ rating }) => {
   return <Text style={styles.stars}>{stars.join("")}</Text>;
 };
 
-const ActivityItem = ({ item, onPressUser }) => {
+const ActivityItem = ({ item, onPressUser, onPressShow }) => {
   const showThumb = item.type !== "added_to_list" && item.show?.posterUrl;
 
   return (
@@ -183,7 +183,7 @@ const ActivityItem = ({ item, onPressUser }) => {
         styles.item,
         pressed && { backgroundColor: "rgba(82,183,136,0.05)" },
       ]}
-      onPress={() => {}}
+      onPress={() => onPressShow(item.show)}
     >
       <TouchableOpacity onPress={() => onPressUser(item.friend)} activeOpacity={0.7}>
         <InitialsAvatar
@@ -235,7 +235,9 @@ const ActivityItem = ({ item, onPressUser }) => {
       </View>
 
       {showThumb && (
-        <Image source={{ uri: item.show.posterUrl }} style={styles.thumb} />
+        <TouchableOpacity onPress={() => onPressShow(item.show)} activeOpacity={0.8}>
+          <Image source={{ uri: item.show.posterUrl }} style={styles.thumb} />
+        </TouchableOpacity>
       )}
     </Pressable>
   );
@@ -251,6 +253,10 @@ const Friends = ({ navigation }) => {
       userId: friend.id,
       displayName: friend.displayName,
     });
+  };
+
+  const handlePressShow = (show) => {
+    navigation.navigate("ShowCard", { showId: show.id });
   };
 
   return (
@@ -290,7 +296,7 @@ const Friends = ({ navigation }) => {
             data={activities}
             keyExtractor={(item) => item.id}
             renderItem={({ item }) => (
-              <ActivityItem item={item} onPressUser={handlePressUser} />
+              <ActivityItem item={item} onPressUser={handlePressUser} onPressShow={handlePressShow} />
             )}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{ paddingBottom: 20 }}

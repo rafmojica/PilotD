@@ -67,7 +67,7 @@ const formatRating = (r) => (r ? r.toFixed(1) : null);
 
 // ─── ShowCard component ───────────────────────────────────────────────────────
 
-const ShowCard = ({ show, size = "md" }) => {
+const ShowCard = ({ show, size = "md", navigation }) => {
   const isSm = size === "sm";
   const cardW = isSm ? 100 : 126;
   const posterH = isSm ? 150 : 190;
@@ -76,7 +76,7 @@ const ShowCard = ({ show, size = "md" }) => {
     <PressScale
       style={[styles.card, { width: cardW }]}
       scale={0.96}
-      onPress={() => console.log("Navigate to show:", show.id)}
+      onPress={() => navigation.navigate("ShowCard", { showId: show.id })}
     >
       <View style={[styles.posterWrap, { height: posterH }]}>
         <Image
@@ -111,22 +111,19 @@ const ShowCard = ({ show, size = "md" }) => {
 
 // ─── SectionRow component ────────────────────────────────────────────────────
 
-const SectionRow = ({ emoji, title, data, cardSize }) => (
+const SectionRow = ({ emoji, title, data, cardSize, navigation }) => (
   <View style={styles.section}>
     <View style={styles.sectionHeader}>
       <View style={styles.sectionTitleRow}>
         <Text style={styles.sectionEmoji}>{emoji}</Text>
         <Text style={styles.sectionTitle}>{title}</Text>
       </View>
-      <TouchableOpacity onPress={() => console.log("See all:", title)}>
-        <Text style={styles.seeAll}>See all</Text>
-      </TouchableOpacity>
     </View>
     <FlatList
       data={data}
       horizontal
       keyExtractor={(item) => `${title}-${item.id}`}
-      renderItem={({ item }) => <ShowCard show={item} size={cardSize} />}
+      renderItem={({ item }) => <ShowCard show={item} size={cardSize} navigation={navigation} />}
       showsHorizontalScrollIndicator={false}
       contentContainerStyle={styles.hList}
     />
@@ -135,13 +132,13 @@ const SectionRow = ({ emoji, title, data, cardSize }) => (
 
 // ─── HeroBanner component ────────────────────────────────────────────────────
 
-const HeroBanner = ({ show }) => {
+const HeroBanner = ({ show, navigation }) => {
   if (!show) return null;
   return (
     <PressScale
       style={styles.hero}
       scale={0.98}
-      onPress={() => console.log("Navigate to show:", show.id)}
+      onPress={() => navigation.navigate("ShowCard", { showId: show.id })}
     >
       <Image
         source={{ uri: show.image?.original ?? show.image?.medium }}
@@ -177,13 +174,13 @@ const HeroBanner = ({ show }) => {
         <View style={styles.heroBtnRow}>
           <TouchableOpacity
             style={styles.heroBtn}
-            onPress={() => console.log("View Show:", show.id)}
+            onPress={() => navigation.navigate("ShowCard", { showId: show.id })}
           >
             <Text style={styles.heroBtnText}>View Show</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.heroSecBtn}
-            onPress={() => console.log("Add to Watchlist:", show.id)}
+            onPress={() => navigation.navigate("ShowCard", { showId: show.id })}
           >
             <Text style={styles.heroSecBtnText}>+ Watchlist</Text>
           </TouchableOpacity>
@@ -195,7 +192,7 @@ const HeroBanner = ({ show }) => {
 
 // ─── Main screen ──────────────────────────────────────────────────────────────
 
-const Discover = () => {
+const Discover = ({ navigation }) => {
   const [featured, setFeatured] = useState(null);
   const [trending, setTrending] = useState([]);
   const [topRated, setTopRated] = useState([]);
@@ -339,14 +336,14 @@ const Discover = () => {
         </ScrollView>
 
         {/* ── Hero banner ── */}
-        <HeroBanner show={featured} />
+        <HeroBanner show={featured} navigation={navigation} />
 
         {/* ── Show rows ── */}
-        <SectionRow emoji="🔥" title="Trending Now" data={filteredTrending} />
-        <SectionRow emoji="⭐" title="Top Rated All Time" data={topRated} />
-        <SectionRow emoji="✨" title="New Additions" data={recentAdds} />
-        <SectionRow emoji="🎭" title="Popular Dramas" data={dramas} />
-        <SectionRow emoji="😂" title="Fan Favorite Comedies" data={comedies} />
+        <SectionRow emoji="🔥" title="Trending Now" data={filteredTrending} navigation={navigation} />
+        <SectionRow emoji="⭐" title="Top Rated All Time" data={topRated} navigation={navigation} />
+        <SectionRow emoji="✨" title="New Additions" data={recentAdds} navigation={navigation} />
+        <SectionRow emoji="🎭" title="Popular Dramas" data={dramas} navigation={navigation} />
+        <SectionRow emoji="😂" title="Fan Favorite Comedies" data={comedies} navigation={navigation} />
 
         <View style={{ height: 40 }} />
       </ScrollView>

@@ -320,18 +320,14 @@ const ShowCard = ({ route, navigation }) => {
   // ── Fetch all show data ──
   const fetchShowData = useCallback(async () => {
     try {
-      const [showData, seasonsData, episodesData, castData, crewData, ratingSnap, reviewsSnap, userRatingSnap] =
+      // TVMaze fetches are critical — if any fail, show "not found"
+      const [showData, seasonsData, episodesData, castData, crewData] =
         await Promise.all([
           fetch(`${TVMAZE}/shows/${showId}`).then((r) => r.json()),
           fetch(`${TVMAZE}/shows/${showId}/seasons`).then((r) => r.json()),
           fetch(`${TVMAZE}/shows/${showId}/episodes`).then((r) => r.json()),
           fetch(`${TVMAZE}/shows/${showId}/cast`).then((r) => r.json()),
           fetch(`${TVMAZE}/shows/${showId}/crew`).then((r) => r.json()),
-          getDoc(doc(db, "shows", String(showId))),
-          getDocs(collection(db, "shows", String(showId), "reviews")),
-          auth.currentUser
-            ? getDoc(doc(db, "users", auth.currentUser.uid, "showRatings", String(showId)))
-            : Promise.resolve(null),
         ]);
 
       setShow(showData);
@@ -341,15 +337,28 @@ const ShowCard = ({ route, navigation }) => {
       setCrew(crewData);
       setActiveSeason(seasonsData[0] ?? null);
 
-      if (ratingSnap.exists()) {
+      // Firestore reads are optional — use allSettled so a missing rule never
+      // blocks the show from rendering
+      const [ratingResult, reviewsResult, userRatingResult] = await Promise.allSettled([
+        getDoc(doc(db, "shows", String(showId))),
+        getDocs(collection(db, "shows", String(showId), "reviews")),
+        auth.currentUser
+          ? getDoc(doc(db, "users", auth.currentUser.uid, "showRatings", String(showId)))
+          : Promise.resolve(null),
+      ]);
+
+      if (ratingResult.status === "fulfilled" && ratingResult.value.exists()) {
         setCommunityRating({
-          average: ratingSnap.data().averageRating ?? 0,
-          total: ratingSnap.data().totalRatings ?? 0,
+          average: ratingResult.value.data().averageRating ?? 0,
+          total: ratingResult.value.data().totalRatings ?? 0,
         });
       }
-      setReviews(reviewsSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
-      if (userRatingSnap?.exists()) setMyRating(userRatingSnap.data().rating);
-
+      if (reviewsResult.status === "fulfilled") {
+        setReviews(reviewsResult.value.docs.map((d) => ({ id: d.id, ...d.data() })));
+      }
+      if (userRatingResult.status === "fulfilled" && userRatingResult.value?.exists()) {
+        setMyRating(userRatingResult.value.data().rating);
+      }
     } catch (err) {
       console.error("[ShowCard] fetch error:", err);
     } finally {
