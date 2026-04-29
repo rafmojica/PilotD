@@ -13,6 +13,7 @@ import QRCode from "react-native-qrcode-svg";
 import { TOTP, Secret } from "otpauth";
 import { doc, updateDoc, setDoc } from "firebase/firestore";
 import { auth, db } from "../config/firebase";
+import { StatusBar } from "expo-status-bar";
 
 const C = {
   bg: "#081C15",
@@ -21,7 +22,7 @@ const C = {
   text: "#D8F3DC",
   subtext: "#74C69D",
   muted: "#2D6A4F",
-  border: "#1B4332",
+  border: "rgba(45,106,79,0.12)",
 };
 
 const TotpSetup = ({ navigation }) => {
@@ -78,10 +79,26 @@ const TotpSetup = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.screen}>
-      <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+      <StatusBar barStyle="light-content" backgroundColor={C.bg} />
+
+      <View style={styles.header}>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.backBtn}
+        >
+          <Text style={styles.backChevron}>‹</Text>
+          <Text style={styles.backLabel}>Settings</Text>
+        </TouchableOpacity>
+      </View>
+
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        keyboardShouldPersistTaps="handled"
+      >
         <Text style={styles.title}>Set Up Two-Factor Auth</Text>
         <Text style={styles.subtitle}>
-          Scan this QR code with Google Authenticator, then enter the 6-digit code to confirm.
+          Scan this QR code with Google Authenticator, then enter the 6-digit
+          code to confirm.
         </Text>
 
         {uri ? (
@@ -90,11 +107,15 @@ const TotpSetup = ({ navigation }) => {
           </View>
         ) : null}
 
-        <Text style={styles.manualLabel}>Can't scan? Enter this key manually:</Text>
-        <Text style={styles.secretText} selectable>{secret}</Text>
+        <Text style={styles.manualLabel}>
+          Can't scan? Enter this key manually:
+        </Text>
+        <Text style={styles.secretText} selectable>
+          {secret}
+        </Text>
 
         <TextInput
-          style={styles.input}
+          style={[styles.input, { letterSpacing: code.length > 0 ? 8 : 0 }]}
           placeholder="Enter 6-digit code"
           placeholderTextColor={C.muted}
           value={code}
@@ -123,6 +144,15 @@ const TotpSetup = ({ navigation }) => {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: C.bg },
+  header: {
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: C.border,
+  },
+  backBtn: { flexDirection: "row", alignItems: "center", gap: 4 },
+  backChevron: { fontSize: 22, color: C.accent, lineHeight: 26 },
+  backLabel: { fontSize: 14, color: C.accent, fontWeight: "500" },
   scroll: {
     flexGrow: 1,
     paddingHorizontal: 24,
@@ -175,8 +205,14 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     borderWidth: 1,
     borderColor: C.border,
+    outlineStyle: "none",
   },
-  error: { color: "#EF4444", fontSize: 13, marginBottom: 10, alignSelf: "flex-start" },
+  error: {
+    color: "#EF4444",
+    fontSize: 13,
+    marginBottom: 10,
+    alignSelf: "flex-start",
+  },
   button: {
     width: "100%",
     backgroundColor: C.accent,

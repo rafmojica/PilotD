@@ -29,7 +29,15 @@ const SectionLabel = ({ label }) => (
   <Text style={styles.sectionLabel}>{label}</Text>
 );
 
-const SettingsRow = ({ emoji, iconBg, label, sub, onPress, right, disabled }) => (
+const SettingsRow = ({
+  emoji,
+  iconBg,
+  label,
+  sub,
+  onPress,
+  right,
+  disabled,
+}) => (
   <TouchableOpacity
     style={styles.row}
     onPress={onPress}
@@ -45,7 +53,7 @@ const SettingsRow = ({ emoji, iconBg, label, sub, onPress, right, disabled }) =>
         {sub ? <Text style={styles.rowSub}>{sub}</Text> : null}
       </View>
     </View>
-    {right ?? <Text style={styles.chevron}>›</Text>}
+    {right !== undefined ? right : <Text style={styles.chevron}>›</Text>}{" "}
   </TouchableOpacity>
 );
 
@@ -66,7 +74,10 @@ const Settings = ({ navigation }) => {
       <StatusBar barStyle="light-content" backgroundColor={C.bg} />
 
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.backBtn}
+        >
           <Text style={styles.backChevron}>‹</Text>
           <Text style={styles.backLabel}>Profile</Text>
         </TouchableOpacity>
@@ -75,7 +86,6 @@ const Settings = ({ navigation }) => {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false}>
-
         <SectionLabel label="Account" />
 
         <SettingsRow
@@ -83,7 +93,7 @@ const Settings = ({ navigation }) => {
           iconBg="rgba(82,183,136,0.12)"
           label="Email Address"
           sub={user?.email ?? "—"}
-          onPress={() => {}}
+          right={null}
         />
 
         <SettingsRow
@@ -103,7 +113,9 @@ const Settings = ({ navigation }) => {
           sub="Manage your plan"
           onPress={() => {}}
           right={
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <View
+              style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+            >
               <View style={styles.freeBadge}>
                 <Text style={styles.freeBadgeText}>FREE</Text>
               </View>
@@ -256,8 +268,18 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
   },
-  confirmTitle: { fontSize: 14, color: C.text, fontWeight: "500", marginBottom: 4 },
-  confirmSub: { fontSize: 13, color: C.subtext, marginBottom: 14, lineHeight: 19 },
+  confirmTitle: {
+    fontSize: 14,
+    color: C.text,
+    fontWeight: "500",
+    marginBottom: 4,
+  },
+  confirmSub: {
+    fontSize: 13,
+    color: C.subtext,
+    marginBottom: 14,
+    lineHeight: 19,
+  },
   confirmBtns: { flexDirection: "row", gap: 10 },
   confirmCancel: {
     flex: 1,
