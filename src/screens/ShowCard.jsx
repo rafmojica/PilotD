@@ -297,6 +297,7 @@ const ShowCard = ({ route, navigation }) => {
 
   // ── Data state ──
   const [show, setShow] = useState(null);
+  const [backgroundUri, setBackgroundUri] = useState(null);
   const [seasons, setSeasons] = useState([]);
   const [allEpisodes, setAllEpisodes] = useState([]);
   const [cast, setCast] = useState([]);
@@ -321,13 +322,14 @@ const ShowCard = ({ route, navigation }) => {
   const fetchShowData = useCallback(async () => {
     try {
       // TVMaze fetches are critical — if any fail, show "not found"
-      const [showData, seasonsData, episodesData, castData, crewData] =
+      const [showData, seasonsData, episodesData, castData, crewData, imagesData] =
         await Promise.all([
           fetch(`${TVMAZE}/shows/${showId}`).then((r) => r.json()),
           fetch(`${TVMAZE}/shows/${showId}/seasons`).then((r) => r.json()),
           fetch(`${TVMAZE}/shows/${showId}/episodes`).then((r) => r.json()),
           fetch(`${TVMAZE}/shows/${showId}/cast`).then((r) => r.json()),
           fetch(`${TVMAZE}/shows/${showId}/crew`).then((r) => r.json()),
+          fetch(`${TVMAZE}/shows/${showId}/images`).then((r) => r.json()),
         ]);
 
       setShow(showData);
@@ -336,6 +338,23 @@ const ShowCard = ({ route, navigation }) => {
       setCast(castData.slice(0, 20));
       setCrew(crewData);
       setActiveSeason(seasonsData[0] ?? null);
+
+      // Pick the best landscape background: prefer "background" type, then any
+      // image where width > height (i.e. not a portrait poster)
+      if (Array.isArray(imagesData)) {
+        const landscape = imagesData.filter((img) => {
+          const { width, height } = img.resolutions?.original ?? {};
+          return width && height && width > height;
+        });
+        const bg =
+          landscape.find((img) => img.type === "background") ??
+          landscape.find((img) => img.type === "banner") ??
+          landscape[0] ??
+          null;
+        if (bg?.resolutions?.original?.url) {
+          setBackgroundUri(bg.resolutions.original.url);
+        }
+      }
 
       // Firestore reads are optional — use allSettled so a missing rule never
       // blocks the show from rendering
@@ -418,9 +437,9 @@ const ShowCard = ({ route, navigation }) => {
 
         {/* ── Hero ── */}
         <View style={styles.hero}>
-          {show.image?.original ? (
+          {(backgroundUri ?? show.image?.original) ? (
             <Image
-              source={{ uri: show.image.original }}
+              source={{ uri: backgroundUri ?? show.image.original }}
               style={styles.heroBg}
               resizeMode="cover"
             />
