@@ -47,6 +47,7 @@ const Signup = ({ navigation }) => {
         photoURL: user.photoURL ?? null,
         followerCount: 0,
         followingCount: 0,
+        totpEnabled: false,
         createdAt: serverTimestamp(),
         avatarColor: ["#52B788", "#F59E0B", "#EF4444", "#8B5CF6", "#0EA5E9"][Math.floor(Math.random() * 5)],
       });

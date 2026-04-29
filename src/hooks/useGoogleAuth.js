@@ -26,6 +26,7 @@ const createUserDocIfNeeded = async (user) => {
       photoURL: user.photoURL || "",
       followerCount: 0,
       followingCount: 0,
+      totpEnabled: false,
       createdAt: serverTimestamp(),
     });
     await setDoc(doc(db, "lists", `${user.uid}_watchlist`), {

@@ -178,7 +178,7 @@ const Search = () => {
       try {
         const encoded = encodeURIComponent(searchText.trim());
         const lower = searchText.trim().toLowerCase();
-        const currentUid = auth.currentUser?.uid;
+        const currentUid = auth.currentUser?.uid ?? "";
 
         const [showRes, byUsername, byDisplayName] = await Promise.all([
           fetch(`${TVMAZE}/search/shows?q=${encoded}`).then((r) => r.json()),
