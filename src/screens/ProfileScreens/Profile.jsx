@@ -399,22 +399,21 @@ const Profile = ({ navigation }) => {
             <StatRow
               label="Shows"
               value={counts.showsCount}
-              onPress={() => console.log("TODO: navigate to AllShows")}
+              onPress={() => navigation.navigate("Shows")}
             />
             <View style={styles.divider} />
 
             <StatRow
               label="Reviews"
               value={counts.reviewsCount}
-              onPress={() => console.log("TODO: navigate to AllReviews")}
+              onPress={() => navigation.navigate("Reviews")}
             />
             <View style={styles.divider} />
 
             <StatRow
               label="Likes"
               value={counts.likesCount}
-              heart
-              onPress={() => console.log("TODO: navigate to Likes")}
+              onPress={() => navigation.navigate("Likes")}
             />
             <View style={styles.divider} />
 
