@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useCallback } from "react";
 import {
   View,
   Text,
@@ -10,6 +10,17 @@ import {
   SafeAreaView,
   StatusBar,
 } from "react-native";
+import { auth, db } from "../../config/firebase";
+import {
+  collection,
+  getDocs,
+  query,
+  orderBy,
+  doc,
+  updateDoc,
+} from "firebase/firestore";
+import { useFocusEffect } from "@react-navigation/native";
+import Svg, { Path } from "react-native-svg";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -22,7 +33,6 @@ const C = {
   accent: "#52B788",
   accentSoft: "#52B78822",
   gold: "#F59E0B",
-  goldSoft: "#F59E0B20",
   text: "#D8F3DC",
   subtext: "#74C69D",
   muted: "#2D6A4F",
@@ -31,166 +41,25 @@ const C = {
   heart: "#EF4444",
 };
 
-// ─── Mock diary entries ───────────────────────────────────────────────────────
-// Each entry can be a full show, a specific season, or a specific episode.
-// Replace with real Firebase reads once auth is wired up.
-//
-// Firebase structure for reference:
-//   users/{uid}/diary/{entryId} = {
-//     showId, showName,
-//     type: "show" | "season" | "episode",
-//     seasonNumber?,
-//     episodeNumber?,
-//     episodeName?,
-//     rating,        // 0–5
-//     review?,       // optional text
-//     watchedDate,   // timestamp
-//     rewatch,       // bool
-//     liked,         // bool
-//   }
-
-const MOCK_DIARY = [
-  {
-    id: "d1",
-    showId: 169,
-    showName: "Breaking Bad",
-    type: "show",
-    rating: 5,
-    review: "One of the greatest shows ever made. The transformation of Walter White is unmatched in television history.",
-    watchedDate: new Date("2024-04-18"),
-    rewatch: false,
-    liked: true,
-  },
-  {
-    id: "d2",
-    showId: 82,
-    showName: "Game of Thrones",
-    type: "season",
-    seasonNumber: 4,
-    rating: 5,
-    review: "Peak Game of Thrones. The writing here is just incredible.",
-    watchedDate: new Date("2024-04-12"),
-    rewatch: true,
-    liked: true,
-  },
-  {
-    id: "d3",
-    showId: 1621,
-    showName: "Mr. Robot",
-    type: "episode",
-    seasonNumber: 3,
-    episodeNumber: 5,
-    episodeName: "eps3.4_runtime-error.r00",
-    rating: 5,
-    review: "The one-shot episode. Possibly the best single episode of television I have ever seen.",
-    watchedDate: new Date("2024-04-05"),
-    rewatch: false,
-    liked: true,
-  },
-  {
-    id: "d4",
-    showId: 526,
-    showName: "Black Mirror",
-    type: "season",
-    seasonNumber: 3,
-    rating: 4,
-    review: null,
-    watchedDate: new Date("2024-03-29"),
-    rewatch: false,
-    liked: false,
-  },
-  {
-    id: "d5",
-    showId: 41734,
-    showName: "Westworld",
-    type: "show",
-    rating: 3.5,
-    review: "Started incredible, lost me by season 3.",
-    watchedDate: new Date("2024-03-20"),
-    rewatch: false,
-    liked: false,
-  },
-  {
-    id: "d6",
-    showId: 118,
-    showName: "Arrested Development",
-    type: "show",
-    rating: 5,
-    review: "Still one of the funniest shows ever written.",
-    watchedDate: new Date("2024-03-10"),
-    rewatch: true,
-    liked: true,
-  },
-  {
-    id: "d7",
-    showId: 132,
-    showName: "The Wire",
-    type: "season",
-    seasonNumber: 4,
-    rating: 5,
-    review: null,
-    watchedDate: new Date("2024-02-28"),
-    rewatch: false,
-    liked: true,
-  },
-  {
-    id: "d8",
-    showId: 2993,
-    showName: "Fargo",
-    type: "show",
-    rating: 4.5,
-    review: "Season 1 is perfect television.",
-    watchedDate: new Date("2024-02-14"),
-    rewatch: false,
-    liked: false,
-  },
-  {
-    id: "d9",
-    showId: 66,
-    showName: "Skins",
-    type: "season",
-    seasonNumber: 2,
-    rating: 4,
-    review: null,
-    watchedDate: new Date("2024-01-30"),
-    rewatch: true,
-    liked: false,
-  },
-  {
-    id: "d10",
-    showId: 169,
-    showName: "Breaking Bad",
-    type: "episode",
-    seasonNumber: 5,
-    episodeNumber: 14,
-    episodeName: "Ozymandias",
-    rating: 5,
-    review: "The single best episode of Breaking Bad. Maybe of anything.",
-    watchedDate: new Date("2024-01-15"),
-    rewatch: true,
-    liked: true,
-  },
-];
-
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-// Groups diary entries by "Month Year" label
+const toDate = (val) => {
+  if (!val) return new Date();
+  if (val?.toDate) return val.toDate();
+  if (val instanceof Date) return val;
+  return new Date(val);
+};
+
 const groupByMonth = (entries) => {
   const groups = {};
   entries.forEach((entry) => {
-    const label = entry.watchedDate.toLocaleDateString("en-US", {
-      month: "long",
-      year: "numeric",
-    });
+    const d = toDate(entry.watchedDate);
+    const label = d.toLocaleDateString("en-US", { month: "long", year: "numeric" });
     if (!groups[label]) groups[label] = [];
     groups[label].push(entry);
   });
-  // Return as array of { month, entries }
   return Object.entries(groups).map(([month, entries]) => ({ month, entries }));
 };
-
-const formatDay = (date) =>
-  date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 
 // ─── Stars ────────────────────────────────────────────────────────────────────
 
@@ -203,7 +72,7 @@ const Stars = ({ rating, size = 12 }) => {
       {Array(full).fill(null).map((_, i) => (
         <Text key={`f${i}`} style={{ color: C.gold, fontSize: size }}>★</Text>
       ))}
-      {half && <Text style={{ color: C.gold, fontSize: size }}>½</Text>}
+      {half && <Text style={{ color: C.gold, fontSize: size, opacity: 0.6 }}>★</Text>}
       {Array(empty).fill(null).map((_, i) => (
         <Text key={`e${i}`} style={{ color: C.muted, fontSize: size }}>★</Text>
       ))}
@@ -212,20 +81,17 @@ const Stars = ({ rating, size = 12 }) => {
 };
 
 // ─── Entry type label ─────────────────────────────────────────────────────────
-// Shows what kind of entry it is: full show, season, or episode
 
 const EntryTypeLabel = ({ entry }) => {
   let label = "Show";
   let color = C.accent;
-
   if (entry.type === "season") {
     label = `S${entry.seasonNumber}`;
     color = C.gold;
   } else if (entry.type === "episode") {
     label = `S${entry.seasonNumber}E${entry.episodeNumber}`;
-    color = "#A78BFA"; // purple for episodes
+    color = "#A78BFA";
   }
-
   return (
     <View style={[styles.typeTag, { backgroundColor: color + "25" }]}>
       <Text style={[styles.typeTagText, { color }]}>{label}</Text>
@@ -235,18 +101,19 @@ const EntryTypeLabel = ({ entry }) => {
 
 // ─── Diary entry row ──────────────────────────────────────────────────────────
 
-const DiaryEntry = ({ entry, posterUri, onPress }) => {
-  const [liked, setLiked] = useState(entry.liked);
+const DiaryEntry = ({ entry, posterUri, onPress, onToggleLike }) => {
+  const [liked, setLiked] = useState(entry.liked ?? false);
+  const date = toDate(entry.watchedDate);
 
   return (
     <TouchableOpacity style={styles.entryRow} onPress={onPress} activeOpacity={0.78}>
       {/* Date column */}
       <View style={styles.dateCol}>
         <Text style={styles.dateDay}>
-          {entry.watchedDate.toLocaleDateString("en-US", { day: "numeric" })}
+          {date.toLocaleDateString("en-US", { day: "numeric" })}
         </Text>
         <Text style={styles.dateMon}>
-          {entry.watchedDate.toLocaleDateString("en-US", { month: "short" })}
+          {date.toLocaleDateString("en-US", { month: "short" })}
         </Text>
       </View>
 
@@ -268,16 +135,12 @@ const DiaryEntry = ({ entry, posterUri, onPress }) => {
           <EntryTypeLabel entry={entry} />
         </View>
 
-        {/* Episode name if applicable */}
         {entry.type === "episode" && entry.episodeName && (
           <Text style={styles.episodeName} numberOfLines={1}>
-            <Text style={styles.episodeName} numberOfLines={1}>
-              {`"${entry.episodeName}"`}
-            </Text>
+            {`"${entry.episodeName}"`}
           </Text>
         )}
 
-        {/* Rating + rewatch badge */}
         <View style={styles.entryMeta}>
           {entry.rating > 0 && <Stars rating={entry.rating} size={12} />}
           {entry.rewatch && (
@@ -287,7 +150,6 @@ const DiaryEntry = ({ entry, posterUri, onPress }) => {
           )}
         </View>
 
-        {/* Review snippet */}
         {entry.review && (
           <Text style={styles.reviewSnippet} numberOfLines={2}>
             {entry.review}
@@ -300,8 +162,9 @@ const DiaryEntry = ({ entry, posterUri, onPress }) => {
         style={styles.likeBtn}
         onPress={(e) => {
           e.stopPropagation?.();
-          setLiked((p) => !p);
-          // TODO: update liked status in Firebase
+          const next = !liked;
+          setLiked(next);
+          onToggleLike?.(next);
         }}
       >
         <Text style={[styles.likeIcon, { color: liked ? C.heart : C.muted }]}>
@@ -324,38 +187,63 @@ const MonthHeader = ({ month, count }) => (
 // ─── Main screen ──────────────────────────────────────────────────────────────
 
 const Diary = ({ navigation }) => {
+  const [entries, setEntries] = useState([]);
   const [posterMap, setPosterMap] = useState({});
   const [loading, setLoading] = useState(true);
 
-  const fetchPosters = useCallback(async () => {
+  const fetchDiary = useCallback(async () => {
+    const uid = auth.currentUser?.uid;
+    if (!uid) { setLoading(false); return; }
+
     try {
-      const allIds = [...new Set(MOCK_DIARY.map((e) => e.showId))];
+      const snap = await getDocs(
+        query(
+          collection(db, "users", uid, "diary"),
+          orderBy("watchedDate", "desc"),
+        ),
+      );
+
+      const loaded = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      setEntries(loaded);
+
+      const showIds = [...new Set(loaded.map((e) => e.showId).filter(Boolean))];
       const results = await Promise.allSettled(
-        allIds.map((id) =>
+        showIds.map((id) =>
           fetch(`${TVMAZE}/shows/${id}`)
             .then((r) => r.json())
-            .then((data) => ({ id, uri: data?.image?.medium ?? null }))
-        )
+            .then((data) => ({ id, uri: data?.image?.medium ?? null })),
+        ),
       );
       const map = {};
       results.forEach((r) => {
-        if (r.status === "fulfilled" && r.value.uri) {
-          map[r.value.id] = r.value.uri;
-        }
+        if (r.status === "fulfilled" && r.value.uri) map[r.value.id] = r.value.uri;
       });
       setPosterMap(map);
     } catch (err) {
-      console.error("[Diary] poster fetch error:", err);
+      console.error("[Diary] fetch error:", err);
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => { fetchPosters(); }, [fetchPosters]);
-
-  const grouped = groupByMonth(
-    [...MOCK_DIARY].sort((a, b) => b.watchedDate - a.watchedDate)
+  useFocusEffect(
+    useCallback(() => {
+      setLoading(true);
+      fetchDiary();
+    }, [fetchDiary]),
   );
+
+  const handleToggleLike = async (entryId, liked) => {
+    const uid = auth.currentUser?.uid;
+    if (!uid) return;
+    try {
+      await updateDoc(doc(db, "users", uid, "diary", entryId), { liked });
+    } catch (err) {
+      console.error("[Diary] like update error:", err);
+    }
+  };
+
+  const grouped = groupByMonth(entries);
 
   if (loading) {
     return (
@@ -369,40 +257,39 @@ const Diary = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.screen}>
       <StatusBar barStyle="light-content" backgroundColor={C.bg} />
+
+      {/* Back button */}
+      <TouchableOpacity
+        style={styles.backBtn}
+        onPress={() => navigation.goBack()}
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+      >
+        <Svg
+          width="22"
+          height="22"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="#95D5B2"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <Path d="M19 12H5" />
+          <Path d="M12 19l-7-7 7-7" />
+        </Svg>
+      </TouchableOpacity>
+
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scroll}
       >
-        {/* ── Header ── */}
+        {/* Header */}
         <View style={styles.header}>
-          <View>
-            <Text style={styles.pageTitle}>Diary</Text>
-            <Text style={styles.pageSub}>{MOCK_DIARY.length} entries</Text>
-          </View>
+          <Text style={styles.pageTitle}>Diary</Text>
+          <Text style={styles.pageSub}>{entries.length} {entries.length === 1 ? "entry" : "entries"}</Text>
         </View>
 
-        {/* ── Grouped entries ── */}
-        {grouped.map(({ month, entries }) => (
-          <View key={month}>
-            <MonthHeader month={month} count={entries.length} />
-            {entries.map((entry, index) => (
-              <View key={entry.id}>
-                <DiaryEntry
-                  entry={entry}
-                  posterUri={posterMap[entry.showId]}
-                  onPress={() =>
-                    navigation.navigate("ShowCard", { showId: entry.showId })
-                  }
-                />
-                {index < entries.length - 1 && (
-                  <View style={styles.entryDivider} />
-                )}
-              </View>
-            ))}
-          </View>
-        ))}
-
-        {MOCK_DIARY.length === 0 && (
+        {entries.length === 0 ? (
           <View style={styles.emptyState}>
             <Text style={styles.emptyIcon}>📖</Text>
             <Text style={styles.emptyTitle}>Your diary is empty</Text>
@@ -410,6 +297,27 @@ const Diary = ({ navigation }) => {
               Start watching and rating shows to fill your diary
             </Text>
           </View>
+        ) : (
+          grouped.map(({ month, entries: monthEntries }) => (
+            <View key={month}>
+              <MonthHeader month={month} count={monthEntries.length} />
+              {monthEntries.map((entry, index) => (
+                <View key={entry.id}>
+                  <DiaryEntry
+                    entry={entry}
+                    posterUri={posterMap[entry.showId]}
+                    onPress={() =>
+                      navigation.navigate("ShowCard", { showId: entry.showId })
+                    }
+                    onToggleLike={(liked) => handleToggleLike(entry.id, liked)}
+                  />
+                  {index < monthEntries.length - 1 && (
+                    <View style={styles.entryDivider} />
+                  )}
+                </View>
+              ))}
+            </View>
+          ))
         )}
       </ScrollView>
     </SafeAreaView>
@@ -430,10 +338,16 @@ const styles = StyleSheet.create({
   },
   loadingText: { color: C.subtext, fontSize: 14, fontWeight: "500" },
 
-  // Header
+  backBtn: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 4,
+    alignSelf: "flex-start",
+  },
+
   header: {
     paddingHorizontal: 16,
-    paddingTop: 18,
+    paddingTop: 8,
     paddingBottom: 14,
     borderBottomWidth: 1,
     borderBottomColor: C.border,
@@ -451,7 +365,6 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
 
-  // Month group
   monthHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -472,7 +385,6 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
 
-  // Entry row
   entryRow: {
     flexDirection: "row",
     alignItems: "flex-start",
@@ -486,7 +398,6 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
   },
 
-  // Date column
   dateCol: {
     width: 32,
     alignItems: "center",
@@ -506,7 +417,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
   },
 
-  // Poster
   poster: {
     width: 52,
     height: 76,
@@ -518,7 +428,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
 
-  // Entry info
   entryInfo: { flex: 1, gap: 4 },
   entryTitleRow: {
     flexDirection: "row",
@@ -561,7 +470,6 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
   },
 
-  // Type tag
   typeTag: {
     borderRadius: 5,
     paddingHorizontal: 6,
@@ -573,16 +481,12 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
   },
 
-  // Like button
   likeBtn: {
     paddingTop: 2,
     paddingLeft: 4,
   },
-  likeIcon: {
-    fontSize: 18,
-  },
+  likeIcon: { fontSize: 18 },
 
-  // Empty state
   emptyState: {
     alignItems: "center",
     paddingTop: 80,

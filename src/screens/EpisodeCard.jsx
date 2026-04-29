@@ -11,14 +11,18 @@ import {
   StatusBar,
   TextInput,
   Modal,
+  Dimensions,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
-import { doc, getDoc, runTransaction, collection, addDoc, setDoc, getDocs, query, where, limit, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, runTransaction, collection, addDoc, setDoc, getDocs, query, where, limit, orderBy, serverTimestamp, deleteDoc, updateDoc, increment } from "firebase/firestore";
 import { db, auth } from "../config/firebase";
 import Stars from "../components/Stars";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const TVMAZE = "https://api.tvmaze.com";
+const { height: SCREEN_H } = Dimensions.get("window");
 
 const C = {
   bg: "#081C15",
@@ -38,19 +42,6 @@ const C = {
 };
 
 // ─── Firebase helpers ─────────────────────────────────────────────────────────
-//
-// Firestore structure for episode ratings:
-//   shows/{showId}/episodes/{episodeId}/
-//     averageRating: 4.3
-//     totalRatings: 203
-//     ratingsSum: 871
-//
-//   users/{uid}/episodeRatings/{episodeId}/
-//     rating: 4
-//     updatedAt: timestamp
-//
-//   shows/{showId}/episodes/{episodeId}/reviews/{reviewId}/
-//     uid, displayName, rating, text, likes, createdAt
 
 const fetchEpisodeRatingData = async (showId, episodeId) => {
   const user = auth.currentUser;
@@ -58,9 +49,7 @@ const fetchEpisodeRatingData = async (showId, episodeId) => {
   const [epDoc, userRatingDoc] = await Promise.all([
     getDoc(doc(db, "shows", String(showId), "episodes", String(episodeId))),
     user
-      ? getDoc(
-          doc(db, "users", user.uid, "episodeRatings", String(episodeId))
-        )
+      ? getDoc(doc(db, "users", user.uid, "episodeRatings", String(episodeId)))
       : Promise.resolve(null),
   ]);
 
@@ -180,7 +169,6 @@ const AvatarCircle = ({ initials, color, size = 32 }) => (
 );
 
 // ─── Dual Rating Display ──────────────────────────────────────────────────────
-// Same pattern as ShowCard — community avg on left, personal on right
 
 const DualRatingDisplay = ({ communityRating, myRating, onRatePress }) => (
   <View style={styles.dualRating}>
@@ -287,7 +275,8 @@ const RateModal = ({ visible, onClose, currentRating, onRate, episodeName, savin
 };
 
 // ─── Review Card ──────────────────────────────────────────────────────────────
-const ReviewCard = ({ review, compact }) => (
+
+const ReviewCard = ({ review, compact = false, isLiked = false, onToggleLike, onComment }) => (
   <View style={styles.reviewCard}>
     <View style={styles.reviewHeader}>
       <AvatarCircle
@@ -306,15 +295,158 @@ const ReviewCard = ({ review, compact }) => (
           </Text>
         </View>
       </View>
-      <Text style={styles.reviewLikes}>♥ {review.likes ?? 0}</Text>
     </View>
     <Text style={styles.reviewText} numberOfLines={compact ? 3 : undefined}>
       {review.text}
     </Text>
+    <View style={styles.reviewActions}>
+      <TouchableOpacity style={styles.reviewActionBtn} onPress={onToggleLike}>
+        <Text style={[styles.reviewActionText, isLiked && { color: C.heart }]}>
+          {isLiked ? "♥" : "♡"}  {review.likes ?? 0}
+        </Text>
+      </TouchableOpacity>
+      <TouchableOpacity style={styles.reviewActionBtn} onPress={onComment}>
+        <Text style={styles.reviewActionText}>💬  Comment</Text>
+      </TouchableOpacity>
+    </View>
   </View>
 );
 
+// ─── Comments Modal ───────────────────────────────────────────────────────────
+
+const CommentsModal = ({ visible, onClose, review, showId, episodeId }) => {
+  const [comments, setComments] = useState([]);
+  const [commentText, setCommentText] = useState("");
+  const [posting, setPosting] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!visible || !review) return;
+    setLoading(true);
+    getDocs(
+      query(
+        collection(db, "shows", String(showId), "episodes", String(episodeId), "reviews", review.id, "comments"),
+        orderBy("createdAt", "asc")
+      )
+    )
+      .then((snap) => setComments(snap.docs.map((d) => ({ id: d.id, ...d.data() }))))
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, [visible, review, showId, episodeId]);
+
+  const submit = async () => {
+    const user = auth.currentUser;
+    if (!user || !commentText.trim() || posting) return;
+    setPosting(true);
+    try {
+      const ref = await addDoc(
+        collection(db, "shows", String(showId), "episodes", String(episodeId), "reviews", review.id, "comments"),
+        {
+          uid: user.uid,
+          displayName: user.displayName ?? "Anonymous",
+          text: commentText.trim(),
+          createdAt: serverTimestamp(),
+        }
+      );
+      setComments((prev) => [
+        ...prev,
+        { id: ref.id, uid: user.uid, displayName: user.displayName ?? "Anonymous", text: commentText.trim(), createdAt: null },
+      ]);
+      setCommentText("");
+    } catch (err) {
+      console.error("Episode comment post error:", err);
+    } finally {
+      setPosting(false);
+    }
+  };
+
+  if (!review) return null;
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
+        <TouchableOpacity
+          style={styles.commentsBackdrop}
+          activeOpacity={1}
+          onPress={onClose}
+        >
+          <TouchableOpacity activeOpacity={1} style={styles.commentsSheet}>
+            {/* Header */}
+            <View style={styles.commentsHeader}>
+              <Text style={styles.commentsTitle}>Comments</Text>
+              <TouchableOpacity onPress={onClose}>
+                <Text style={styles.commentsClose}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Review preview */}
+            <View style={styles.commentsReviewPreview}>
+              <AvatarCircle
+                initials={(review.displayName ?? "?").slice(0, 2).toUpperCase()}
+                color="#52B788"
+                size={28}
+              />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.reviewUser}>{review.displayName}</Text>
+                <Text style={styles.reviewText} numberOfLines={2}>{review.text}</Text>
+              </View>
+            </View>
+
+            <View style={styles.commentsDivider} />
+
+            {/* Comments list */}
+            {loading ? (
+              <ActivityIndicator color={C.accent} style={{ marginVertical: 24 }} />
+            ) : comments.length === 0 ? (
+              <Text style={styles.commentsEmpty}>No comments yet — start the conversation!</Text>
+            ) : (
+              <ScrollView style={styles.commentsList} showsVerticalScrollIndicator={false}>
+                {comments.map((c) => (
+                  <View key={c.id} style={styles.commentItem}>
+                    <AvatarCircle
+                      initials={(c.displayName ?? "?").slice(0, 2).toUpperCase()}
+                      color={C.muted}
+                      size={26}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.commentUser}>{c.displayName}</Text>
+                      <Text style={styles.commentText}>{c.text}</Text>
+                    </View>
+                  </View>
+                ))}
+              </ScrollView>
+            )}
+
+            {/* Comment input */}
+            <View style={styles.commentInputRow}>
+              <TextInput
+                style={styles.commentInput}
+                placeholder="Add a comment…"
+                placeholderTextColor={C.muted}
+                value={commentText}
+                onChangeText={setCommentText}
+                multiline
+              />
+              <TouchableOpacity
+                style={[styles.commentSubmitBtn, (!commentText.trim() || posting) && { opacity: 0.4 }]}
+                onPress={submit}
+                disabled={!commentText.trim() || posting}
+              >
+                <Text style={styles.commentSubmitText}>{posting ? "…" : "Post"}</Text>
+              </TouchableOpacity>
+            </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+};
+
 // ─── Section ──────────────────────────────────────────────────────────────────
+
 const Section = ({ title, children, action, onAction }) => (
   <View style={styles.section}>
     <View style={styles.sectionHeader}>
@@ -330,13 +462,6 @@ const Section = ({ title, children, action, onAction }) => (
 );
 
 // ─── Main EpisodeCard Screen ──────────────────────────────────────────────────
-// Navigate here from ShowCard with:
-// navigation.navigate("EpisodeCard", {
-//   episodeId: ep.id,
-//   showId: 169,
-//   showName: "Breaking Bad",
-//   seasonNumber: 5,
-// })
 
 const EpisodeCard = ({ route, navigation }) => {
   const {
@@ -356,6 +481,8 @@ const EpisodeCard = ({ route, navigation }) => {
   const [myRating, setMyRating] = useState(0);
   const [savingRating, setSavingRating] = useState(false);
   const [reviews, setReviews] = useState([]);
+  const [likedReviewIds, setLikedReviewIds] = useState(new Set());
+  const [myExistingReview, setMyExistingReview] = useState(null);
 
   // UI state
   const [showRateModal, setShowRateModal] = useState(false);
@@ -364,26 +491,40 @@ const EpisodeCard = ({ route, navigation }) => {
   const [reviewText, setReviewText] = useState("");
   const [expandDesc, setExpandDesc] = useState(false);
   const [showAllReviews, setShowAllReviews] = useState(false);
+  const [commentsModalReview, setCommentsModalReview] = useState(null);
+
+  // ── Load / refresh reviews + liked state ──
+  const refreshReviews = useCallback(async () => {
+    try {
+      const snap = await getDocs(
+        collection(db, "shows", String(showId), "episodes", String(episodeId), "reviews")
+      );
+      const docs = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      setReviews(docs);
+      const user = auth.currentUser;
+      if (user) {
+        setMyExistingReview(docs.find((r) => r.uid === user.uid) ?? null);
+        const likedSnap = await getDocs(collection(db, "users", user.uid, "episodeReviewLikes"));
+        setLikedReviewIds(new Set(likedSnap.docs.map((d) => d.id)));
+      }
+    } catch (err) {
+      console.error("[EpisodeCard] refreshReviews error:", err);
+    }
+  }, [showId, episodeId]);
 
   // ── Fetch episode data from TVMaze + ratings from Firebase ──
   const fetchAll = useCallback(async () => {
-    console.log("EpisodeCard params:", { episodeId, showId, showName, seasonNumber });
     try {
-        const [epData, ratingData, reviewsSnap] = await Promise.all([
-            fetch(`${TVMAZE}/episodes/${episodeId}`).then((r) => r.json()),
-            fetchEpisodeRatingData(showId, episodeId),
-            getDocs(collection(db, "shows", String(showId), "episodes", String(episodeId), "reviews")),
-        ]);
+      const [epData, ratingData] = await Promise.all([
+        fetch(`${TVMAZE}/episodes/${episodeId}`).then((r) => r.json()),
+        fetchEpisodeRatingData(showId, episodeId),
+      ]);
 
-        setEpisode(epData);
-        setCommunityRating(ratingData.community);
-        setMyRating(ratingData.myRating);
-        setReviews(reviewsSnap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      setEpisode(epData);
+      setCommunityRating(ratingData.community);
+      setMyRating(ratingData.myRating);
 
-      // Also grab the show poster for the hero background
-      const showData = await fetch(`${TVMAZE}/shows/${showId}`).then((r) =>
-        r.json()
-      );
+      const showData = await fetch(`${TVMAZE}/shows/${showId}`).then((r) => r.json());
       setShowImage(showData?.image?.original ?? null);
     } catch (err) {
       console.error("[EpisodeCard] fetch error:", err);
@@ -394,7 +535,32 @@ const EpisodeCard = ({ route, navigation }) => {
 
   useEffect(() => {
     fetchAll();
-  }, [fetchAll]);
+    refreshReviews();
+  }, [fetchAll, refreshReviews]);
+
+  // ── Toggle like on a review ──
+  const toggleReviewLike = async (reviewId) => {
+    const user = auth.currentUser;
+    if (!user) return;
+    const isLiked = likedReviewIds.has(reviewId);
+    const reviewRef = doc(db, "shows", String(showId), "episodes", String(episodeId), "reviews", reviewId);
+    const likeRef = doc(db, "users", user.uid, "episodeReviewLikes", reviewId);
+    try {
+      if (isLiked) {
+        await deleteDoc(likeRef);
+        await updateDoc(reviewRef, { likes: increment(-1) });
+        setLikedReviewIds((prev) => { const n = new Set(prev); n.delete(reviewId); return n; });
+        setReviews((prev) => prev.map((r) => r.id === reviewId ? { ...r, likes: Math.max(0, (r.likes ?? 0) - 1) } : r));
+      } else {
+        await setDoc(likeRef, { showId, episodeId, likedAt: serverTimestamp() });
+        await updateDoc(reviewRef, { likes: increment(1) });
+        setLikedReviewIds((prev) => new Set([...prev, reviewId]));
+        setReviews((prev) => prev.map((r) => r.id === reviewId ? { ...r, likes: (r.likes ?? 0) + 1 } : r));
+      }
+    } catch (err) {
+      console.error("Toggle episode review like error:", err);
+    }
+  };
 
   // ── Derived ──
   const description = stripHtml(episode?.summary);
@@ -410,29 +576,27 @@ const EpisodeCard = ({ route, navigation }) => {
     : null;
 
   // ── Submit episode rating to Firebase ──
-    const handleRateEpisode = useCallback(
-        async (newRating) => {
-            console.log("handleRateEpisode called:", { showId, episodeId, episodeName, seasonNumber, newRating }); // ← add this
-            setSavingRating(true);
-            try {
-            await submitEpisodeRating(showId, episodeId, newRating, myRating);
-            await writeDiaryEntry(
-                showId, showName, episodeId, episodeName,
-                seasonNumber, episode?.number, newRating, null
-            );
-            const updated = await fetchEpisodeRatingData(showId, episodeId);
-            setCommunityRating(updated.community);
-            setMyRating(updated.myRating);
-            setShowRateModal(false);
-            } catch (err) {
-            console.error("[EpisodeCard] rating error:", err);
-            } finally {
-            setSavingRating(false);
-            }
-        },
-        [showId, episodeId, myRating, showName, episodeName, seasonNumber, episode]
-    );
-
+  const handleRateEpisode = useCallback(
+    async (newRating) => {
+      setSavingRating(true);
+      try {
+        await submitEpisodeRating(showId, episodeId, newRating, myRating);
+        await writeDiaryEntry(
+          showId, showName, episodeId, episodeName,
+          seasonNumber, episode?.number, newRating, null
+        );
+        const updated = await fetchEpisodeRatingData(showId, episodeId);
+        setCommunityRating(updated.community);
+        setMyRating(updated.myRating);
+        setShowRateModal(false);
+      } catch (err) {
+        console.error("[EpisodeCard] rating error:", err);
+      } finally {
+        setSavingRating(false);
+      }
+    },
+    [showId, episodeId, myRating, showName, episodeName, seasonNumber, episode]
+  );
 
   // ─────────────────────────────────────────────────────────────────────────────
 
@@ -445,11 +609,12 @@ const EpisodeCard = ({ route, navigation }) => {
     );
   }
 
+  const hasMyReview = !!myExistingReview;
+
   return (
     <SafeAreaView style={styles.screen}>
       <StatusBar barStyle="light-content" backgroundColor={C.bg} />
 
-      {/* Back button */}
       <TouchableOpacity
         style={styles.backBtn}
         onPress={() => navigation?.goBack()}
@@ -463,7 +628,6 @@ const EpisodeCard = ({ route, navigation }) => {
       >
         {/* ── Hero ── */}
         <View style={styles.hero}>
-          {/* Use episode image if available, else fall back to show image */}
           {(episode?.image?.original ?? showImage) && (
             <Image
               source={{ uri: episode?.image?.original ?? showImage }}
@@ -474,7 +638,6 @@ const EpisodeCard = ({ route, navigation }) => {
           <View style={styles.heroOverlay} />
 
           <View style={styles.heroContent}>
-            {/* Episode still / thumbnail */}
             {episode?.image?.medium ? (
               <Image
                 source={{ uri: episode.image.medium }}
@@ -488,27 +651,19 @@ const EpisodeCard = ({ route, navigation }) => {
             )}
 
             <View style={styles.heroInfo}>
-              {/* Show name breadcrumb */}
               <TouchableOpacity
-                onPress={() =>
-                  navigation.navigate("ShowCard", { showId })
-                }
+                onPress={() => navigation.navigate("ShowCard", { showId })}
               >
-                <Text style={styles.showBreadcrumb}>
-                  {showName}  ›
-                </Text>
+                <Text style={styles.showBreadcrumb}>{showName}  ›</Text>
               </TouchableOpacity>
 
-              {/* Episode code badge */}
               <View style={styles.epCodeBadge}>
                 <Text style={styles.epCodeText}>{episodeLabel}</Text>
               </View>
 
               <Text style={styles.episodeTitle}>{episodeName}</Text>
 
-              {airDate && (
-                <Text style={styles.airDate}>Aired {airDate}</Text>
-              )}
+              {airDate && <Text style={styles.airDate}>Aired {airDate}</Text>}
               {episode?.runtime && (
                 <Text style={styles.runtime}>{episode.runtime} min</Text>
               )}
@@ -521,26 +676,14 @@ const EpisodeCard = ({ route, navigation }) => {
           <TouchableOpacity
             style={[
               styles.actionBtn,
-              hearted && {
-                backgroundColor: C.heartSoft,
-                borderColor: C.heart + "60",
-              },
+              hearted && { backgroundColor: C.heartSoft, borderColor: C.heart + "60" },
             ]}
             onPress={() => setHearted((p) => !p)}
           >
-            <Text
-              style={[
-                styles.actionIcon,
-                { color: hearted ? C.heart : C.subtext },
-              ]}
-            >
+            <Text style={[styles.actionIcon, { color: hearted ? C.heart : C.subtext }]}>
               {hearted ? "♥" : "♡"}
             </Text>
-            <Text
-              style={[styles.actionLabel, hearted && { color: C.heart }]}
-            >
-              Save
-            </Text>
+            <Text style={[styles.actionLabel, hearted && { color: C.heart }]}>Save</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -556,26 +699,12 @@ const EpisodeCard = ({ route, navigation }) => {
           <TouchableOpacity
             style={[
               styles.actionBtn,
-              liked && {
-                backgroundColor: C.accentSoft,
-                borderColor: C.accent + "60",
-              },
+              liked && { backgroundColor: C.accentSoft, borderColor: C.accent + "60" },
             ]}
             onPress={() => setLiked((p) => !p)}
           >
-            <Text
-              style={[
-                styles.actionIcon,
-                { color: liked ? C.accent : C.subtext },
-              ]}
-            >
-              👍
-            </Text>
-            <Text
-              style={[styles.actionLabel, liked && { color: C.accent }]}
-            >
-              Like
-            </Text>
+            <Text style={[styles.actionIcon, { color: liked ? C.accent : C.subtext }]}>👍</Text>
+            <Text style={[styles.actionLabel, liked && { color: C.accent }]}>Like</Text>
           </TouchableOpacity>
         </View>
 
@@ -615,22 +744,18 @@ const EpisodeCard = ({ route, navigation }) => {
               ["Season", String(seasonNumber ?? episode?.season ?? "—")],
               ["Episode", String(episode?.number ?? "—")],
               ...(airDate ? [["Air Date", airDate]] : []),
-              ...(episode?.runtime
-                ? [["Runtime", `${episode.runtime} min`]]
-                : []),
+              ...(episode?.runtime ? [["Runtime", `${episode.runtime} min`]] : []),
               ...(episode?.type ? [["Type", episode.type]] : []),
             ].map(([label, value]) => (
               <View key={label} style={styles.detailItem}>
                 <Text style={styles.detailLabel}>{label}</Text>
-                <Text style={styles.detailValue} numberOfLines={2}>
-                  {value}
-                </Text>
+                <Text style={styles.detailValue} numberOfLines={2}>{value}</Text>
               </View>
             ))}
           </View>
         </Section>
 
-        {/* ── Popular Reviews ── */}
+        {/* ── Reviews ── */}
         <Section
           title="Reviews"
           action={showAllReviews ? "Hide" : "See All"}
@@ -638,17 +763,24 @@ const EpisodeCard = ({ route, navigation }) => {
         >
           {reviews.length > 0 ? (
             (showAllReviews ? reviews : reviews.slice(0, 2)).map((r) => (
-                <ReviewCard key={r.id} review={r} compact={!showAllReviews} />
+              <ReviewCard
+                key={r.id}
+                review={r}
+                compact={!showAllReviews}
+                isLiked={likedReviewIds.has(r.id)}
+                onToggleLike={() => toggleReviewLike(r.id)}
+                onComment={() => setCommentsModalReview(r)}
+              />
             ))
           ) : (
             <Text style={{ color: C.muted, fontSize: 13, fontStyle: "italic" }}>
-                No reviews yet — be the first!
+              No reviews yet — be the first!
             </Text>
           )}
         </Section>
 
-        {/* ── Leave a Review ── */}
-        <Section title="Leave a Review">
+        {/* ── Leave / Edit a Review ── */}
+        <Section title={hasMyReview ? "Edit Your Review" : "Leave a Review"}>
           <View style={styles.reviewInputBlock}>
             <View style={styles.reviewRatingRow}>
               <Text style={styles.reviewRatingLabel}>Rating:</Text>
@@ -671,44 +803,45 @@ const EpisodeCard = ({ route, navigation }) => {
               onChangeText={setReviewText}
             />
             <TouchableOpacity
-              style={[
-                styles.submitBtn,
-                !reviewText.trim() && styles.submitBtnDisabled,
-              ]}
+              style={[styles.submitBtn, !reviewText.trim() && styles.submitBtnDisabled]}
               disabled={!reviewText.trim()}
               onPress={async () => {
                 const user = auth.currentUser;
                 if (!user || !reviewText.trim()) return;
                 try {
+                  if (myExistingReview) {
+                    await updateDoc(
+                      doc(db, "shows", String(showId), "episodes", String(episodeId), "reviews", myExistingReview.id),
+                      { rating: myRating, text: reviewText.trim(), updatedAt: serverTimestamp() }
+                    );
+                  } else {
+                    const userDoc = await getDoc(doc(db, "users", user.uid));
                     await addDoc(
-                    collection(db, "shows", String(showId), "episodes", String(episodeId), "reviews"),
-                    {
+                      collection(db, "shows", String(showId), "episodes", String(episodeId), "reviews"),
+                      {
                         uid: user.uid,
-                        displayName: (await getDoc(doc(db, "users", user.uid))).data()?.displayName ?? "Anonymous",
+                        displayName: userDoc.data()?.displayName ?? user.displayName ?? "Anonymous",
                         rating: myRating,
                         text: reviewText.trim(),
                         createdAt: serverTimestamp(),
                         likes: 0,
-                    }
+                      }
                     );
-                    await writeDiaryEntry(
+                  }
+                  await writeDiaryEntry(
                     showId, showName, episodeId, episodeName,
                     seasonNumber, episode?.number, myRating, reviewText.trim()
-                    );
-                    setReviews((prev) => [...prev, {
-                    id: Date.now().toString(),
-                    displayName: auth.currentUser?.displayName ?? "Anonymous",
-                    rating: myRating,
-                    text: reviewText.trim(),
-                    likes: 0,
-                    }]);
-                    setReviewText("");
+                  );
+                  setReviewText("");
+                  await refreshReviews();
                 } catch (err) {
-                    console.error("Episode review submit error:", err);
+                  console.error("Episode review submit error:", err);
                 }
               }}
             >
-              <Text style={styles.submitBtnText}>Post Review</Text>
+              <Text style={styles.submitBtnText}>
+                {hasMyReview ? "Update Review" : "Post Review"}
+              </Text>
             </TouchableOpacity>
           </View>
         </Section>
@@ -734,6 +867,15 @@ const EpisodeCard = ({ route, navigation }) => {
         onRate={handleRateEpisode}
         episodeName={fullTitle}
         saving={savingRating}
+      />
+
+      {/* ── Comments Modal ── */}
+      <CommentsModal
+        visible={!!commentsModalReview}
+        review={commentsModalReview}
+        onClose={() => setCommentsModalReview(null)}
+        showId={showId}
+        episodeId={episodeId}
       />
     </SafeAreaView>
   );
@@ -910,6 +1052,7 @@ const styles = StyleSheet.create({
   },
 
   // Details
+  detailsGrid: { gap: 0 },
   detailItem: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -934,8 +1077,10 @@ const styles = StyleSheet.create({
   reviewHeader: { flexDirection: "row", alignItems: "center", gap: 8 },
   reviewUser: { fontSize: 13, color: C.text, fontWeight: "700" },
   reviewDate: { fontSize: 11, color: C.muted },
-  reviewLikes: { fontSize: 12, color: C.heart, marginLeft: "auto" },
   reviewText: { fontSize: 13, color: C.subtext, lineHeight: 19 },
+  reviewActions: { flexDirection: "row", gap: 16, marginTop: 2 },
+  reviewActionBtn: { flexDirection: "row", alignItems: "center" },
+  reviewActionText: { fontSize: 13, color: C.muted, fontWeight: "600" },
 
   // Review input
   reviewInputBlock: {
@@ -1043,6 +1188,99 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   rateConfirmText: { color: "#fff", fontWeight: "700" },
+
+  // Comments modal
+  commentsBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    justifyContent: "flex-end",
+  },
+  commentsSheet: {
+    backgroundColor: C.surface,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    maxHeight: SCREEN_H * 0.75,
+    paddingBottom: 20,
+  },
+  commentsHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 16,
+    paddingBottom: 12,
+  },
+  commentsTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: C.text,
+  },
+  commentsClose: {
+    fontSize: 16,
+    color: C.subtext,
+    fontWeight: "600",
+    paddingHorizontal: 4,
+  },
+  commentsReviewPreview: {
+    flexDirection: "row",
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    alignItems: "flex-start",
+  },
+  commentsDivider: {
+    height: 1,
+    backgroundColor: C.border,
+    marginHorizontal: 16,
+    marginBottom: 8,
+  },
+  commentsEmpty: {
+    fontSize: 13,
+    color: C.muted,
+    fontStyle: "italic",
+    textAlign: "center",
+    paddingVertical: 24,
+    paddingHorizontal: 16,
+  },
+  commentsList: {
+    maxHeight: SCREEN_H * 0.35,
+    paddingHorizontal: 16,
+  },
+  commentItem: {
+    flexDirection: "row",
+    gap: 10,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: C.border,
+    alignItems: "flex-start",
+  },
+  commentUser: { fontSize: 12, color: C.text, fontWeight: "700", marginBottom: 2 },
+  commentText: { fontSize: 13, color: C.subtext, lineHeight: 18 },
+  commentInputRow: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: 10,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+  },
+  commentInput: {
+    flex: 1,
+    backgroundColor: C.card,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    color: C.text,
+    fontSize: 14,
+    borderWidth: 1,
+    borderColor: C.border2,
+    maxHeight: 80,
+  },
+  commentSubmitBtn: {
+    backgroundColor: C.accent,
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+  },
+  commentSubmitText: { color: "#fff", fontWeight: "700", fontSize: 14 },
 });
 
 export default EpisodeCard;
