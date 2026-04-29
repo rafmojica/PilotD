@@ -1,4 +1,6 @@
 import React, { useState, useCallback } from "react";
+import FadeInView from "../../components/FadeInView";
+import PressScale from "../../components/PressScale";
 import {
   View,
   Text,
@@ -10,12 +12,21 @@ import {
   SafeAreaView,
   StatusBar,
 } from "react-native";
-import { signOut } from "firebase/auth";
 import { auth, db } from "../../config/firebase";
-import { doc, getDoc, collection, query, orderBy, limit, getDocs } from "firebase/firestore";
+import {
+  doc,
+  getDoc,
+  collection,
+  query,
+  orderBy,
+  limit,
+  getDocs,
+  updateDoc,
+} from "firebase/firestore";
 import Stars from "../../components/Stars";
 import InitialsAvatar from "../../components/InitialsAvatar";
 import { useFocusEffect } from "@react-navigation/native";
+import Svg, { Circle, Path, Rect, Polyline } from "react-native-svg";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 // Same palette as PublicLists.jsx — keep these in sync across screens
@@ -63,7 +74,14 @@ const RatingChart = ({ distribution }) => {
       </View>
       <View style={styles.chartStarRow}>
         <Text style={{ color: C.gold, fontSize: 11 }}>★</Text>
-        <View style={{ flex: 1, height: 1, backgroundColor: C.muted, marginHorizontal: 6 }} />
+        <View
+          style={{
+            flex: 1,
+            height: 1,
+            backgroundColor: C.muted,
+            marginHorizontal: 6,
+          }}
+        />
         <Text style={{ color: C.gold, fontSize: 11 }}>★★★★★</Text>
       </View>
     </View>
@@ -73,20 +91,36 @@ const RatingChart = ({ distribution }) => {
 // ─── Recent Activity Card ─────────────────────────────────────────────────────
 
 const ActivityCard = ({ showId, rating, posterUri, onPress }) => (
-  <TouchableOpacity onPress={onPress} activeOpacity={0.8}>
+  <PressScale scale={0.94} onPress={onPress}>
     <View style={styles.activityCard}>
       {posterUri ? (
-        <Image source={{ uri: posterUri }} style={styles.activityPoster} resizeMode="cover" />
+        <Image
+          source={{ uri: posterUri }}
+          style={styles.activityPoster}
+          resizeMode="cover"
+        />
       ) : (
         <View style={[styles.activityPoster, styles.posterPlaceholder]}>
-          <Text style={{ fontSize: 22 }}>📺</Text>
+          <Svg
+            width="26"
+            height="26"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="#40916C"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <Rect x="2" y="7" width="20" height="15" rx="2" />
+            <Polyline points="17 2 12 7 7 2" />
+          </Svg>
         </View>
       )}
       <View style={styles.activityRating}>
         <Stars rating={rating} size={10} />
       </View>
     </View>
-  </TouchableOpacity>
+  </PressScale>
 );
 
 // ─── Stats Row ────────────────────────────────────────────────────────────────
@@ -95,12 +129,14 @@ const ActivityCard = ({ showId, rating, posterUri, onPress }) => (
 // with: navigation.navigate("AllShows")  etc.
 
 const StatRow = ({ label, value, onPress, heart }) => (
-  <TouchableOpacity style={styles.statRow} onPress={onPress} activeOpacity={0.7}>
+  <TouchableOpacity
+    style={styles.statRow}
+    onPress={onPress}
+    activeOpacity={0.7}
+  >
     <Text style={[styles.statLabel, heart && { color: C.heart }]}>{label}</Text>
     <View style={styles.statRight}>
-      {value !== undefined && (
-        <Text style={styles.statValue}>{value}</Text>
-      )}
+      {value !== undefined && <Text style={styles.statValue}>{value}</Text>}
       <Text style={styles.statChevron}>›</Text>
     </View>
   </TouchableOpacity>
@@ -111,11 +147,19 @@ const StatRow = ({ label, value, onPress, heart }) => (
 const Profile = ({ navigation }) => {
   const [posters, setPosters] = useState({});
   const [loading, setLoading] = useState(true);
-  const [totpEnabled, setTotpEnabled] = useState(false);
   const [user, setUser] = useState(null);
   const [recentActivity, setRecentActivity] = useState([]);
   const [ratingDistribution, setRatingDistribution] = useState({});
-  const [counts, setCounts] = useState({ showsCount: 0, diaryCount: 0, listsCount: 0, reviewsCount: 0, likesCount: 0, followingCount: 0, followersCount: 0, tagsCount: 0 });
+  const [counts, setCounts] = useState({
+    showsCount: 0,
+    diaryCount: 0,
+    listsCount: 0,
+    reviewsCount: 0,
+    likesCount: 0,
+    followingCount: 0,
+    followersCount: 0,
+    tagsCount: 0,
+  });
 
   const fetchAll = useCallback(async () => {
     const uid = auth.currentUser?.uid;
@@ -123,20 +167,36 @@ const Profile = ({ navigation }) => {
     try {
       // Fetch user profile
       const userSnap = await getDoc(doc(db, "users", uid));
-      if (userSnap.exists()) setUser({ uid, ...userSnap.data() });
+      // Fetch user profile
+      if (userSnap.exists()) {
+        const data = userSnap.data();
 
-      // Fetch TOTP
-      setTotpEnabled(!!userSnap.data()?.totpEnabled);
+        // Sync Google photo to Firestore if missing
+        if (!data.photoURL && auth.currentUser?.photoURL) {
+          await updateDoc(doc(db, "users", uid), {
+            photoURL: auth.currentUser.photoURL,
+          });
+          data.photoURL = auth.currentUser.photoURL;
+        }
+
+        setUser({ uid, ...data });
+      }
 
       // Fetch 4 most recent diary entries
       const diarySnap = await getDocs(
-        query(collection(db, "users", uid, "diary"), orderBy("watchedDate", "desc"), limit(4))
+        query(
+          collection(db, "users", uid, "diary"),
+          orderBy("watchedDate", "desc"),
+          limit(4),
+        ),
       );
       const activity = diarySnap.docs.map((d) => ({ id: d.id, ...d.data() }));
       setRecentActivity(activity);
 
       // Fetch rating distribution from showRatings
-      const ratingsSnap = await getDocs(collection(db, "users", uid, "showRatings"));
+      const ratingsSnap = await getDocs(
+        collection(db, "users", uid, "showRatings"),
+      );
       const dist = {};
       ratingsSnap.docs.forEach((d) => {
         const r = d.data().rating;
@@ -145,14 +205,19 @@ const Profile = ({ navigation }) => {
       setRatingDistribution(dist);
 
       // Fetch counts
-      const [listsSnap, diaryCountSnap, likesSnap, followingSnap, followersSnap] =
-        await Promise.all([
-          getDocs(collection(db, "users", uid, "lists")),
-          getDocs(collection(db, "users", uid, "diary")),
-          getDocs(collection(db, "users", uid, "likes")),
-          getDocs(collection(db, "users", uid, "following")),
-          getDocs(collection(db, "users", uid, "followers")),
-        ]);
+      const [
+        listsSnap,
+        diaryCountSnap,
+        likesSnap,
+        followingSnap,
+        followersSnap,
+      ] = await Promise.all([
+        getDocs(collection(db, "users", uid, "lists")),
+        getDocs(collection(db, "users", uid, "diary")),
+        getDocs(collection(db, "users", uid, "likes")),
+        getDocs(collection(db, "users", uid, "following")),
+        getDocs(collection(db, "users", uid, "followers")),
+      ]);
       setCounts({
         showsCount: ratingsSnap.size,
         diaryCount: diaryCountSnap.size,
@@ -161,21 +226,24 @@ const Profile = ({ navigation }) => {
         followingCount: followingSnap.size,
         followersCount: followersSnap.size,
         reviewsCount: 0, // TODO: add reviews collection
-        tagsCount: 0,    // TODO: add tags collection
+        tagsCount: 0, // TODO: add tags collection
       });
 
       // Fetch posters for recent activity
-      const showIds = [...new Set(activity.map((e) => e.showId).filter(Boolean))];
+      const showIds = [
+        ...new Set(activity.map((e) => e.showId).filter(Boolean)),
+      ];
       const results = await Promise.allSettled(
         showIds.map((id) =>
           fetch(`${TVMAZE}/shows/${id}`)
             .then((r) => r.json())
-            .then((data) => ({ id, uri: data?.image?.medium ?? null }))
-        )
+            .then((data) => ({ id, uri: data?.image?.medium ?? null })),
+        ),
       );
       const map = {};
       results.forEach((r) => {
-        if (r.status === "fulfilled" && r.value.uri) map[r.value.id] = r.value.uri;
+        if (r.status === "fulfilled" && r.value.uri)
+          map[r.value.id] = r.value.uri;
       });
       setPosters(map);
     } catch (err) {
@@ -188,7 +256,7 @@ const Profile = ({ navigation }) => {
   useFocusEffect(
     useCallback(() => {
       fetchAll();
-    }, [fetchAll])
+    }, [fetchAll]),
   );
 
   if (loading) {
@@ -203,135 +271,175 @@ const Profile = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.screen}>
       <StatusBar barStyle="light-content" backgroundColor={C.bg} />
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-
-        {/* ── Header ── */}
-        <View style={styles.header}>
-          <View style={styles.headerTop}>
-            {/* Avatar */}
+      <FadeInView>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scroll}
+        >
+          {/* ── Header ── */}
+          <View style={styles.header}>
             <InitialsAvatar
               name={user?.displayName}
-              size={64}
+              photoURL={user?.photoURL}
+              size={70}
               color={user?.avatarColor}
               style={{ borderWidth: 2, borderColor: "#52B788" }}
             />
-
             <View style={styles.headerInfo}>
               <Text style={styles.displayName}>{user?.displayName}</Text>
-              <Text style={styles.username}>{user?.username}</Text>
-              {user?.bio ? (
-                <Text style={styles.bio}>{user.bio}</Text>
-              ) : null}
+              <View
+                style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+              >
+                <Text style={styles.username}>@{user?.username}</Text>
+                {user?.pronouns ? (
+                  <>
+                    <Text style={styles.username}>·</Text>
+                    <Text style={styles.username}>{user.pronouns}</Text>
+                  </>
+                ) : null}
+              </View>
+              {user?.bio ? <Text style={styles.bio}>{user.bio}</Text> : null}
             </View>
-
-            <TouchableOpacity style={styles.editBtn}>
-              <Text style={styles.editBtnText}>Edit</Text>
+            <TouchableOpacity
+              style={styles.gearBtn}
+              onPress={() => navigation.navigate("Settings")}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              {/* SETTINGS ICON */}
+              <Svg
+                width="22"
+                height="22"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="#95D5B2"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+              >
+                <Circle cx="12" cy="12" r="3" />
+                <Path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+              </Svg>
             </TouchableOpacity>
           </View>
-        </View>
 
-        {/* ── Recent Activity ── */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Recent Activity</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.activityRow}>
-            {recentActivity.map((entry ) => (
-              <ActivityCard
-                key={entry.id}
-                showId={entry.showId}
-                rating={entry.rating}
-                posterUri={posters[entry.showId]}
-                onPress={() => navigation.navigate("ShowCard", { showId: entry.showId })}
-              />
-            ))}
-          </ScrollView>
-        </View>
+          {/* ── Profile Stats ── */}
+          <View style={styles.profileStats}>
+            <View style={styles.profileStatItem}>
+              <Text style={styles.profileStatNum}>{counts.showsCount}</Text>
+              <Text style={styles.profileStatLabel}>Shows</Text>
+            </View>
+            <View style={styles.profileStatItem}>
+              <Text style={styles.profileStatNum}>{counts.reviewsCount}</Text>
+              <Text style={styles.profileStatLabel}>Reviews</Text>
+            </View>
+            <View style={styles.profileStatItem}>
+              <Text style={styles.profileStatNum}>{counts.followersCount}</Text>
+              <Text style={styles.profileStatLabel}>Followers</Text>
+            </View>
+            <View style={styles.profileStatItem}>
+              <Text style={styles.profileStatNum}>{counts.followingCount}</Text>
+              <Text style={styles.profileStatLabel}>Following</Text>
+            </View>
+          </View>
 
-        {/* ── Rating Distribution ── */}
-        <RatingChart distribution={ratingDistribution}/>
+          {/* ── Edit Profile Button ── */}
+          <TouchableOpacity
+            style={styles.editProfileBtn}
+            onPress={() => navigation.navigate("EditProfile")}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.editProfileBtnText}>Edit Profile</Text>
+          </TouchableOpacity>
 
-        {/* ── Stats ── */}
-        <View style={styles.statsSection}>
+          {/* ── Recent Activity ── */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Recent Activity</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.activityRow}
+            >
+              {recentActivity.map((entry) => (
+                <ActivityCard
+                  key={entry.id}
+                  showId={entry.showId}
+                  rating={entry.rating}
+                  posterUri={posters[entry.showId]}
+                  onPress={() =>
+                    navigation.navigate("ShowCard", { showId: entry.showId })
+                  }
+                />
+              ))}
+            </ScrollView>
+          </View>
 
-          {/* 
+          {/* ── Rating Distribution ── */}
+          <RatingChart distribution={ratingDistribution} />
+
+          {/* ── Stats ── */}
+          <View style={styles.statsSection}>
+            {/* 
             TODO: Replace navigation.navigate stubs below with real screen names
             once those sub-screens are built.
             e.g. navigation.navigate("AllShows"), navigation.navigate("AllReviews"), etc.
           */}
-          <StatRow
-            label="Diary"
-            value={counts.diaryCount}
-            onPress={() => navigation.navigate("Diary")}
-          />
-          <View style={styles.divider} />
+            <StatRow
+              label="Diary"
+              value={counts.diaryCount}
+              onPress={() => navigation.navigate("Diary")}
+            />
+            <View style={styles.divider} />
 
-          <StatRow
-            label="Lists"
-            value={counts.listsCount}
-            onPress={() => navigation.navigate("Lists")}
-          />
-          <View style={styles.divider} />
+            <StatRow
+              label="Lists"
+              value={counts.listsCount}
+              onPress={() => navigation.navigate("Lists")}
+            />
+            <View style={styles.divider} />
 
-          <StatRow
-            label="Shows"
-            value={counts.showsCount}
-            onPress={() => console.log("TODO: navigate to AllShows")}
-          />
-          <View style={styles.divider} />
+            <StatRow
+              label="Shows"
+              value={counts.showsCount}
+              onPress={() => console.log("TODO: navigate to AllShows")}
+            />
+            <View style={styles.divider} />
 
-          <StatRow
-            label="Reviews"
-            value={counts.reviewsCount}
-            onPress={() => console.log("TODO: navigate to AllReviews")}
-          />
-          <View style={styles.divider} />
+            <StatRow
+              label="Reviews"
+              value={counts.reviewsCount}
+              onPress={() => console.log("TODO: navigate to AllReviews")}
+            />
+            <View style={styles.divider} />
 
-          <StatRow
-            label="Likes"
-            value={counts.likesCount}
-            heart
-            onPress={() => console.log("TODO: navigate to Likes")}
-          />
-          <View style={styles.divider} />
+            <StatRow
+              label="Likes"
+              value={counts.likesCount}
+              heart
+              onPress={() => console.log("TODO: navigate to Likes")}
+            />
+            <View style={styles.divider} />
 
-          <StatRow
-            label="Tags"
-            value={counts.tagsCount}
-            onPress={() => console.log("TODO: navigate to Tags")}
-          />
-          <View style={styles.divider} />
+            <StatRow
+              label="Tags"
+              value={counts.tagsCount}
+              onPress={() => console.log("TODO: navigate to Tags")}
+            />
+            <View style={styles.divider} />
 
-          <StatRow
-            label="Following"
-            value={counts.followingCount}
-            onPress={() => console.log("TODO: navigate to Following")}
-          />
-          <View style={styles.divider} />
+            <StatRow
+              label="Following"
+              value={counts.followingCount}
+              onPress={() => console.log("TODO: navigate to Following")}
+            />
+            <View style={styles.divider} />
 
-          <StatRow
-            label="Followers"
-            value={counts.followersCount}
-            onPress={() => console.log("TODO: navigate to Followers")}
-          />
-        </View>
-
-        {totpEnabled ? (
-          <View style={styles.twoFactorEnabled}>
-            <Text style={styles.twoFactorEnabledText}>✓  Two-Factor Auth Enabled</Text>
+            <StatRow
+              label="Followers"
+              value={counts.followersCount}
+              onPress={() => console.log("TODO: navigate to Followers")}
+            />
           </View>
-        ) : (
-          <TouchableOpacity
-            style={styles.twoFactorBtn}
-            onPress={() => navigation.navigate("TotpSetup")}
-          >
-            <Text style={styles.twoFactorText}>Enable Two-Factor Auth</Text>
-          </TouchableOpacity>
-        )}
-
-        <TouchableOpacity style={styles.signOutBtn} onPress={() => signOut(auth)}>
-          <Text style={styles.signOutText}>Sign Out</Text>
-        </TouchableOpacity>
-
-      </ScrollView>
+        </ScrollView>
+      </FadeInView>
     </SafeAreaView>
   );
 };
@@ -353,43 +461,67 @@ const styles = StyleSheet.create({
   // Header
   header: {
     paddingHorizontal: 20,
-    paddingTop: 18,
-    paddingBottom: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: C.border,
-  },
-  headerTop: {
+    paddingTop: 20,
+    paddingBottom: 0,
     flexDirection: "row",
+    gap: 16,
     alignItems: "flex-start",
-    gap: 14,
   },
   headerInfo: { flex: 1 },
+  gearBtn: { padding: 4 },
+  gearIcon: { fontSize: 20 },
   displayName: {
-    fontSize: 20,
-    fontWeight: "800",
+    fontSize: 22,
+    fontFamily: "DMSerifDisplay_400Regular",
     color: C.text,
-    letterSpacing: -0.3,
+    marginBottom: 2,
   },
   username: {
     fontSize: 13,
-    color: C.subtext,
-    marginTop: 2,
-    fontWeight: "500",
+    color: C.accent,
+    marginBottom: 6,
   },
   bio: {
-    fontSize: 12,
-    color: C.subtext,
-    marginTop: 5,
-    lineHeight: 17,
+    fontSize: 13,
+    color: "#95D5B2",
+    lineHeight: 19,
   },
-  editBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 9,
+
+  // Profile stats bar
+  profileStats: {
+    flexDirection: "row",
+    gap: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+  profileStatItem: { alignItems: "center" },
+  profileStatNum: {
+    fontSize: 20,
+    fontWeight: "700",
+    color: C.text,
+  },
+  profileStatLabel: {
+    fontSize: 11,
+    color: "#40916C",
+    marginTop: 2,
+  },
+
+  // Edit Profile button
+  editProfileBtn: {
+    marginHorizontal: 20,
+    marginBottom: 16,
+    paddingVertical: 10,
+    borderRadius: 10,
+    backgroundColor: "transparent",
     borderWidth: 1,
-    borderColor: C.border2,
+    borderColor: "#40916C",
+    alignItems: "center",
   },
-  editBtnText: { fontSize: 12, color: C.subtext, fontWeight: "600" },
+  editProfileBtnText: {
+    color: "#95D5B2",
+    fontSize: 14,
+    fontWeight: "500",
+  },
 
   // Sections
   section: {
@@ -398,7 +530,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 13,
-    fontWeight: "700",
+    fontFamily: "DMSans_700Bold",
     color: C.subtext,
     letterSpacing: 1,
     textTransform: "uppercase",
@@ -499,51 +631,6 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: C.border,
     marginHorizontal: 16,
-  },
-  twoFactorBtn: {
-    marginHorizontal: 16,
-    marginTop: 16,
-    paddingVertical: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: C.border2,
-    backgroundColor: C.surface,
-    alignItems: "center",
-  },
-  twoFactorText: {
-    color: C.accent,
-    fontSize: 15,
-    fontWeight: "600",
-  },
-  twoFactorEnabled: {
-    marginHorizontal: 16,
-    marginTop: 16,
-    paddingVertical: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: C.accent,
-    backgroundColor: C.accentSoft,
-    alignItems: "center",
-  },
-  twoFactorEnabledText: {
-    color: C.accent,
-    fontSize: 15,
-    fontWeight: "700",
-  },
-  signOutBtn: {
-    marginHorizontal: 16,
-    marginTop: 16,
-    paddingVertical: 14,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "#3d1a1a",
-    backgroundColor: "#1a0a0a",
-    alignItems: "center",
-  },
-  signOutText: {
-    color: "#EF4444",
-    fontSize: 15,
-    fontWeight: "600",
   },
 });
 

@@ -585,7 +585,7 @@ const styles = StyleSheet.create({
   },
   pageTitle: {
     fontSize: 28,
-    fontWeight: "800",
+    fontFamily: "DMSerifDisplay_400Regular",
     color: C.text,
     letterSpacing: -0.4,
   },

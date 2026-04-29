@@ -545,8 +545,8 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     paddingBottom: 6,
   },
-  logoText: { fontSize: 20, fontWeight: "800", color: C.accent, letterSpacing: 3 },
-  logoSub: { fontSize: 10, color: C.subtext, letterSpacing: 1.2, marginTop: 1 },
+  logoText: { fontSize: 20, fontFamily: "DMSerifDisplay_400Regular", color: C.accent, letterSpacing: 3 },
+  logoSub: { fontSize: 10, fontFamily: "DMSans_400Regular", color: C.subtext, letterSpacing: 1.2, marginTop: 1 },
   createBtn: {
     backgroundColor: C.accent,
     borderRadius: 10,
@@ -559,11 +559,11 @@ const styles = StyleSheet.create({
   pageHead: { paddingHorizontal: 20, paddingTop: 16, paddingBottom: 14 },
   pageHeadTitle: {
     fontSize: 30,
-    fontWeight: "800",
+    fontFamily: "DMSerifDisplay_400Regular",
     color: C.text,
     letterSpacing: -0.5,
   },
-  pageHeadSub: { fontSize: 13, color: C.subtext, marginTop: 3, letterSpacing: 0.2 },
+  pageHeadSub: { fontSize: 13, fontFamily: "DMSans_400Regular", color: C.subtext, marginTop: 3, letterSpacing: 0.2 },
 
   // Featured card
   featuredWrap: { paddingHorizontal: 20, marginBottom: 20 },
@@ -607,7 +607,7 @@ const styles = StyleSheet.create({
   },
   featuredTitle: {
     fontSize: 20,
-    fontWeight: "800",
+    fontFamily: "DMSerifDisplay_400Regular",
     color: C.text,
     letterSpacing: -0.3,
     marginBottom: 6,

@@ -3,12 +3,16 @@ import { Platform } from "react-native";
 import * as Google from "expo-auth-session/providers/google";
 import * as WebBrowser from "expo-web-browser";
 import { GoogleAuthProvider, signInWithCredential, signInWithPopup } from "firebase/auth";
-import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, setDoc, serverTimestamp, updateDoc } from "firebase/firestore";
 import { auth, db } from "../config/firebase";
 
 WebBrowser.maybeCompleteAuthSession();
 
 const createUserDocIfNeeded = async (user) => {
+  // ensure the user object is fully hydrated from google
+  await user.reload();
+  const freshUser = auth.currentUser;
+
   const userRef = doc(db, "users", user.uid);
   const snap = await getDoc(userRef);
   if (!snap.exists()) {
@@ -22,6 +26,7 @@ const createUserDocIfNeeded = async (user) => {
       photoURL: user.photoURL || "",
       followerCount: 0,
       followingCount: 0,
+      totpEnabled: false,
       createdAt: serverTimestamp(),
     });
     await setDoc(doc(db, "lists", `${user.uid}_watchlist`), {
@@ -33,6 +38,11 @@ const createUserDocIfNeeded = async (user) => {
       isWatchlist: true,
       createdAt: serverTimestamp(),
     });
+  } else {
+     const data = snap.data();
+    if (!data.photoURL && user.photoURL) {
+      await updateDoc(userRef, { photoURL: freshUser.photoURL });
+    }
   }
 };
 

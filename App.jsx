@@ -6,6 +6,9 @@ import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "./src/config/firebase";
 import { Ionicons } from "@expo/vector-icons";
+import { useFonts } from "expo-font";
+import { DMSerifDisplay_400Regular } from "@expo-google-fonts/dm-serif-display";
+import { DMSans_400Regular, DMSans_500Medium, DMSans_600SemiBold, DMSans_700Bold } from "@expo-google-fonts/dm-sans";
 
 import Signup from "./src/screens/Signup";
 import Login from "./src/screens/Login";
@@ -22,6 +25,8 @@ import PublicLists from "./src/screens/DiscoverScreens/PublicLists";
 import Profile from "./src/screens/ProfileScreens/Profile";
 import Diary from "./src/screens/ProfileScreens/Diary";
 import Lists from "./src/screens/ProfileScreens/Lists";
+import Settings from "./src/screens/ProfileScreens/Settings";
+import EditProfile from "./src/screens/ProfileScreens/EditProfile";
 import TotpSetup from "./src/screens/TotpSetup";
 
 import ShowCard from "./src/screens/ShowCard";
@@ -54,6 +59,8 @@ const ProfileNavigator = () => (
     <ProfileStack.Screen name="Diary" component={Diary} />
     <ProfileStack.Screen name="Lists" component={Lists} />
     <ProfileStack.Screen name="TotpSetup" component={TotpSetup} />
+    <ProfileStack.Screen name="Settings" component={Settings} options={{ presentation: "modal" }} />
+    <ProfileStack.Screen name="EditProfile" component={EditProfile} options={{ presentation: "modal" }} />
   </ProfileStack.Navigator>
 );
 
@@ -106,6 +113,14 @@ const App = () => {
   const [totpPending, setTotpPending] = useState(false);
   const totpVerifiedRef = useRef(false);
 
+  const [fontsLoaded] = useFonts({
+    DMSerifDisplay_400Regular,
+    DMSans_400Regular,
+    DMSans_500Medium,
+    DMSans_600SemiBold,
+    DMSans_700Bold,
+  });
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
@@ -130,7 +145,7 @@ const App = () => {
     setTotpPending(false);
   };
 
-  if (authUser === undefined) return null; // splash / loading
+  if (authUser === undefined || !fontsLoaded) return null;
 
   if (authUser && totpPending) {
     return <TotpVerify onVerified={handleTotpVerified} />;

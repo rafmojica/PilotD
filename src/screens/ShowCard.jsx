@@ -815,7 +815,7 @@ const styles = StyleSheet.create({
   heroInfo: { flex: 1, gap: 4 },
   showTitle: {
     fontSize: 22,
-    fontWeight: "800",
+    fontFamily: "DMSerifDisplay_400Regular",
     color: C.text,
     letterSpacing: -0.4,
   },
