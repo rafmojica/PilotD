@@ -141,20 +141,6 @@ const Section = ({ title, children, action, onAction }) => (
 
 // ─── Rating distribution bar ──────────────────────────────────────────────────
 
-const CommunityRatings = ({ data }) => (
-  <View style={styles.ratingsBlock}>
-    <View style={styles.ratingsBig}>
-      <Text style={styles.ratingsAvg}>{data.average.toFixed(1)}</Text>
-      <Stars rating={data.average} size={16} />
-      <Text style={styles.ratingsCount}>
-        {data.total >= 1000
-          ? `${(data.total / 1000).toFixed(1)}k`
-          : data.total} ratings
-      </Text>
-    </View>
-  </View>
-);
-
 // ─── Review card ──────────────────────────────────────────────────────────────
 
 const ReviewCard = ({ review, compact = false, isLiked = false, onToggleLike, onComment }) => (
@@ -649,6 +635,27 @@ const ShowCard = ({ route, navigation }) => {
                   </View>
                 ))}
               </View>
+              {communityRating && (
+                <View style={heroRatingStyles.row}>
+                  <Text style={heroRatingStyles.star}>★</Text>
+                  <Text style={heroRatingStyles.avg}>
+                    {communityRating.average.toFixed(1)}
+                  </Text>
+                  <Text style={heroRatingStyles.sep}>·</Text>
+                  <Text style={heroRatingStyles.count}>
+                    {communityRating.total >= 1000
+                      ? `${(communityRating.total / 1000).toFixed(1)}k`
+                      : communityRating.total}{" "}
+                    ratings
+                  </Text>
+                  {myRating > 0 && (
+                    <>
+                      <Text style={heroRatingStyles.sep}>·</Text>
+                      <Text style={heroRatingStyles.mine}>You: {myRating}★</Text>
+                    </>
+                  )}
+                </View>
+              )}
               <View
                 style={[
                   styles.statusBadge,
@@ -710,17 +717,6 @@ const ShowCard = ({ route, navigation }) => {
                 {expandDescription ? "Show less ▲" : "Read more ▼"}
               </Text>
             </TouchableOpacity>
-          )}
-        </Section>
-
-        {/* ── Community Ratings ── */}
-        <Section title="Community Ratings">
-          {communityRating ? (
-            <CommunityRatings data={communityRating} />
-          ) : (
-            <Text style={{ color: C.muted, fontSize: 13, fontStyle: "italic" }}>
-              No ratings yet
-            </Text>
           )}
         </Section>
 
@@ -1116,35 +1112,6 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
 
-  // Community ratings
-  ratingsBlock: {
-    flexDirection: "row",
-    gap: 16,
-    backgroundColor: C.surface,
-    borderRadius: 14,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: C.border,
-  },
-  ratingsBig: { alignItems: "center", justifyContent: "center", gap: 4, minWidth: 80 },
-  ratingsAvg: {
-    fontSize: 36,
-    fontWeight: "800",
-    color: C.gold,
-    lineHeight: 40,
-  },
-  ratingsCount: { fontSize: 11, color: C.subtext, marginTop: 2 },
-  ratingsBars: { flex: 1, gap: 4, justifyContent: "center" },
-  ratingBarRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  ratingBarLabel: { fontSize: 10, color: C.subtext, width: 24, textAlign: "right" },
-  ratingBarTrack: {
-    flex: 1,
-    height: 6,
-    backgroundColor: C.card,
-    borderRadius: 4,
-    overflow: "hidden",
-  },
-  ratingBarFill: { height: "100%", backgroundColor: C.gold, borderRadius: 4 },
 
   // Your rating
   yourRatingBlock: {
@@ -1468,6 +1435,20 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   commentSubmitText: { color: "#fff", fontWeight: "700", fontSize: 14 },
+});
+
+const heroRatingStyles = StyleSheet.create({
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    marginTop: 6,
+  },
+  star: { color: C.gold, fontSize: 14, lineHeight: 18 },
+  avg: { color: C.gold, fontSize: 15, fontWeight: "800", letterSpacing: -0.3 },
+  sep: { color: C.muted, fontSize: 13 },
+  count: { color: C.subtext, fontSize: 12, fontWeight: "500" },
+  mine: { color: C.accent, fontSize: 12, fontWeight: "600" },
 });
 
 export default ShowCard;
