@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -10,7 +10,8 @@ import {
   Alert,
 } from "react-native";
 import { signOut } from "firebase/auth";
-import { auth } from "../../config/firebase";
+import { auth, db } from "../../config/firebase";
+import { doc, getDoc } from "firebase/firestore";
 
 const C = {
   bg: "#081C15",
@@ -60,6 +61,15 @@ const SettingsRow = ({
 const Settings = ({ navigation }) => {
   const user = auth.currentUser;
   const [signOutConfirm, setSignOutConfirm] = useState(false);
+  const [totpEnabled, setTotpEnabled] = useState(false);
+
+  useEffect(() => {
+    const uid = auth.currentUser?.uid;
+    if (!uid) return;
+    getDoc(doc(db, "users", uid)).then((snap) => {
+      if (snap.exists()) setTotpEnabled(snap.data().totpEnabled ?? false);
+    });
+  }, []);
 
   const handleSignOut = async () => {
     try {
@@ -98,12 +108,42 @@ const Settings = ({ navigation }) => {
 
         <SettingsRow
           emoji="🔒"
-          iconBg="rgba(244,168,39,0.12)"
+          iconBg={
+            totpEnabled ? "rgba(82,183,136,0.15)" : "rgba(244,168,39,0.12)"
+          }
           label="Two-Factor Auth"
-          sub="Manage login security"
-          onPress={() => navigation.navigate("TotpSetup")}
+          sub={totpEnabled ? "Enabled" : "Manage login security"}
+          onPress={() => !totpEnabled && navigation.navigate("TotpSetup")}
+          disabled={totpEnabled}
+          right={
+            <View
+              style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
+            >
+              {totpEnabled && (
+                <View
+                  style={{
+                    paddingHorizontal: 8,
+                    paddingVertical: 2,
+                    borderRadius: 10,
+                    backgroundColor: "rgba(82,183,136,0.15)",
+                    borderWidth: 1,
+                    borderColor: "rgba(82,183,136,0.3)",
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontSize: 11,
+                      fontWeight: "600",
+                      color: "#52B788",
+                    }}
+                  >
+                    ON
+                  </Text>
+                </View>
+              )}
+            </View>
+          }
         />
-
         <SectionLabel label="Subscription" />
 
         <SettingsRow

@@ -13,7 +13,16 @@ import {
   StatusBar,
 } from "react-native";
 import { auth, db } from "../../config/firebase";
-import { doc, getDoc, collection, query, orderBy, limit, getDocs } from "firebase/firestore";
+import {
+  doc,
+  getDoc,
+  collection,
+  query,
+  orderBy,
+  limit,
+  getDocs,
+  updateDoc,
+} from "firebase/firestore";
 import Stars from "../../components/Stars";
 import InitialsAvatar from "../../components/InitialsAvatar";
 import { useFocusEffect } from "@react-navigation/native";
@@ -64,7 +73,14 @@ const RatingChart = ({ distribution }) => {
       </View>
       <View style={styles.chartStarRow}>
         <Text style={{ color: C.gold, fontSize: 11 }}>★</Text>
-        <View style={{ flex: 1, height: 1, backgroundColor: C.muted, marginHorizontal: 6 }} />
+        <View
+          style={{
+            flex: 1,
+            height: 1,
+            backgroundColor: C.muted,
+            marginHorizontal: 6,
+          }}
+        />
         <Text style={{ color: C.gold, fontSize: 11 }}>★★★★★</Text>
       </View>
     </View>
@@ -77,7 +93,11 @@ const ActivityCard = ({ showId, rating, posterUri, onPress }) => (
   <PressScale scale={0.94} onPress={onPress}>
     <View style={styles.activityCard}>
       {posterUri ? (
-        <Image source={{ uri: posterUri }} style={styles.activityPoster} resizeMode="cover" />
+        <Image
+          source={{ uri: posterUri }}
+          style={styles.activityPoster}
+          resizeMode="cover"
+        />
       ) : (
         <View style={[styles.activityPoster, styles.posterPlaceholder]}>
           <Text style={{ fontSize: 22 }}>📺</Text>
@@ -96,12 +116,14 @@ const ActivityCard = ({ showId, rating, posterUri, onPress }) => (
 // with: navigation.navigate("AllShows")  etc.
 
 const StatRow = ({ label, value, onPress, heart }) => (
-  <TouchableOpacity style={styles.statRow} onPress={onPress} activeOpacity={0.7}>
+  <TouchableOpacity
+    style={styles.statRow}
+    onPress={onPress}
+    activeOpacity={0.7}
+  >
     <Text style={[styles.statLabel, heart && { color: C.heart }]}>{label}</Text>
     <View style={styles.statRight}>
-      {value !== undefined && (
-        <Text style={styles.statValue}>{value}</Text>
-      )}
+      {value !== undefined && <Text style={styles.statValue}>{value}</Text>}
       <Text style={styles.statChevron}>›</Text>
     </View>
   </TouchableOpacity>
@@ -115,7 +137,16 @@ const Profile = ({ navigation }) => {
   const [user, setUser] = useState(null);
   const [recentActivity, setRecentActivity] = useState([]);
   const [ratingDistribution, setRatingDistribution] = useState({});
-  const [counts, setCounts] = useState({ showsCount: 0, diaryCount: 0, listsCount: 0, reviewsCount: 0, likesCount: 0, followingCount: 0, followersCount: 0, tagsCount: 0 });
+  const [counts, setCounts] = useState({
+    showsCount: 0,
+    diaryCount: 0,
+    listsCount: 0,
+    reviewsCount: 0,
+    likesCount: 0,
+    followingCount: 0,
+    followersCount: 0,
+    tagsCount: 0,
+  });
 
   const fetchAll = useCallback(async () => {
     const uid = auth.currentUser?.uid;
@@ -123,17 +154,36 @@ const Profile = ({ navigation }) => {
     try {
       // Fetch user profile
       const userSnap = await getDoc(doc(db, "users", uid));
-      if (userSnap.exists()) setUser({ uid, ...userSnap.data() });
+      // Fetch user profile
+      if (userSnap.exists()) {
+        const data = userSnap.data();
+
+        // Sync Google photo to Firestore if missing
+        if (!data.photoURL && auth.currentUser?.photoURL) {
+          await updateDoc(doc(db, "users", uid), {
+            photoURL: auth.currentUser.photoURL,
+          });
+          data.photoURL = auth.currentUser.photoURL;
+        }
+
+        setUser({ uid, ...data });
+      }
 
       // Fetch 4 most recent diary entries
       const diarySnap = await getDocs(
-        query(collection(db, "users", uid, "diary"), orderBy("watchedDate", "desc"), limit(4))
+        query(
+          collection(db, "users", uid, "diary"),
+          orderBy("watchedDate", "desc"),
+          limit(4),
+        ),
       );
       const activity = diarySnap.docs.map((d) => ({ id: d.id, ...d.data() }));
       setRecentActivity(activity);
 
       // Fetch rating distribution from showRatings
-      const ratingsSnap = await getDocs(collection(db, "users", uid, "showRatings"));
+      const ratingsSnap = await getDocs(
+        collection(db, "users", uid, "showRatings"),
+      );
       const dist = {};
       ratingsSnap.docs.forEach((d) => {
         const r = d.data().rating;
@@ -142,14 +192,19 @@ const Profile = ({ navigation }) => {
       setRatingDistribution(dist);
 
       // Fetch counts
-      const [listsSnap, diaryCountSnap, likesSnap, followingSnap, followersSnap] =
-        await Promise.all([
-          getDocs(collection(db, "users", uid, "lists")),
-          getDocs(collection(db, "users", uid, "diary")),
-          getDocs(collection(db, "users", uid, "likes")),
-          getDocs(collection(db, "users", uid, "following")),
-          getDocs(collection(db, "users", uid, "followers")),
-        ]);
+      const [
+        listsSnap,
+        diaryCountSnap,
+        likesSnap,
+        followingSnap,
+        followersSnap,
+      ] = await Promise.all([
+        getDocs(collection(db, "users", uid, "lists")),
+        getDocs(collection(db, "users", uid, "diary")),
+        getDocs(collection(db, "users", uid, "likes")),
+        getDocs(collection(db, "users", uid, "following")),
+        getDocs(collection(db, "users", uid, "followers")),
+      ]);
       setCounts({
         showsCount: ratingsSnap.size,
         diaryCount: diaryCountSnap.size,
@@ -158,21 +213,24 @@ const Profile = ({ navigation }) => {
         followingCount: followingSnap.size,
         followersCount: followersSnap.size,
         reviewsCount: 0, // TODO: add reviews collection
-        tagsCount: 0,    // TODO: add tags collection
+        tagsCount: 0, // TODO: add tags collection
       });
 
       // Fetch posters for recent activity
-      const showIds = [...new Set(activity.map((e) => e.showId).filter(Boolean))];
+      const showIds = [
+        ...new Set(activity.map((e) => e.showId).filter(Boolean)),
+      ];
       const results = await Promise.allSettled(
         showIds.map((id) =>
           fetch(`${TVMAZE}/shows/${id}`)
             .then((r) => r.json())
-            .then((data) => ({ id, uri: data?.image?.medium ?? null }))
-        )
+            .then((data) => ({ id, uri: data?.image?.medium ?? null })),
+        ),
       );
       const map = {};
       results.forEach((r) => {
-        if (r.status === "fulfilled" && r.value.uri) map[r.value.id] = r.value.uri;
+        if (r.status === "fulfilled" && r.value.uri)
+          map[r.value.id] = r.value.uri;
       });
       setPosters(map);
     } catch (err) {
@@ -185,7 +243,7 @@ const Profile = ({ navigation }) => {
   useFocusEffect(
     useCallback(() => {
       fetchAll();
-    }, [fetchAll])
+    }, [fetchAll]),
   );
 
   if (loading) {
@@ -201,155 +259,161 @@ const Profile = ({ navigation }) => {
     <SafeAreaView style={styles.screen}>
       <StatusBar barStyle="light-content" backgroundColor={C.bg} />
       <FadeInView>
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-
-        {/* ── Header ── */}
-        <View style={styles.header}>
-          <InitialsAvatar
-            name={user?.displayName}
-            photoURL={user?.photoURL}
-            size={70}
-            color={user?.avatarColor}
-            style={{ borderWidth: 2, borderColor: "#52B788" }}
-          />
-          <View style={styles.headerInfo}>
-            <Text style={styles.displayName}>{user?.displayName}</Text>
-            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-              <Text style={styles.username}>@{user?.username}</Text>
-              {user?.pronouns ? (
-                <>
-                  <Text style={styles.username}>·</Text>
-                  <Text style={styles.username}>{user.pronouns}</Text>
-                </>
-              ) : null}
-            </View>
-            {user?.bio ? (
-              <Text style={styles.bio}>{user.bio}</Text>
-            ) : null}
-          </View>
-          <TouchableOpacity
-            style={styles.gearBtn}
-            onPress={() => navigation.navigate("Settings")}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Text style={styles.gearIcon}>⚙️</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* ── Profile Stats ── */}
-        <View style={styles.profileStats}>
-          <View style={styles.profileStatItem}>
-            <Text style={styles.profileStatNum}>{counts.showsCount}</Text>
-            <Text style={styles.profileStatLabel}>Shows</Text>
-          </View>
-          <View style={styles.profileStatItem}>
-            <Text style={styles.profileStatNum}>{counts.reviewsCount}</Text>
-            <Text style={styles.profileStatLabel}>Reviews</Text>
-          </View>
-          <View style={styles.profileStatItem}>
-            <Text style={styles.profileStatNum}>{counts.followersCount}</Text>
-            <Text style={styles.profileStatLabel}>Followers</Text>
-          </View>
-          <View style={styles.profileStatItem}>
-            <Text style={styles.profileStatNum}>{counts.followingCount}</Text>
-            <Text style={styles.profileStatLabel}>Following</Text>
-          </View>
-        </View>
-
-        {/* ── Edit Profile Button ── */}
-        <TouchableOpacity
-          style={styles.editProfileBtn}
-          onPress={() => navigation.navigate("EditProfile")}
-          activeOpacity={0.7}
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scroll}
         >
-          <Text style={styles.editProfileBtnText}>Edit Profile</Text>
-        </TouchableOpacity>
+          {/* ── Header ── */}
+          <View style={styles.header}>
+            <InitialsAvatar
+              name={user?.displayName}
+              photoURL={user?.photoURL}
+              size={70}
+              color={user?.avatarColor}
+              style={{ borderWidth: 2, borderColor: "#52B788" }}
+            />
+            <View style={styles.headerInfo}>
+              <Text style={styles.displayName}>{user?.displayName}</Text>
+              <View
+                style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+              >
+                <Text style={styles.username}>@{user?.username}</Text>
+                {user?.pronouns ? (
+                  <>
+                    <Text style={styles.username}>·</Text>
+                    <Text style={styles.username}>{user.pronouns}</Text>
+                  </>
+                ) : null}
+              </View>
+              {user?.bio ? <Text style={styles.bio}>{user.bio}</Text> : null}
+            </View>
+            <TouchableOpacity
+              style={styles.gearBtn}
+              onPress={() => navigation.navigate("Settings")}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Text style={styles.gearIcon}>⚙️</Text>
+            </TouchableOpacity>
+          </View>
 
-        {/* ── Recent Activity ── */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Recent Activity</Text>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.activityRow}>
-            {recentActivity.map((entry ) => (
-              <ActivityCard
-                key={entry.id}
-                showId={entry.showId}
-                rating={entry.rating}
-                posterUri={posters[entry.showId]}
-                onPress={() => navigation.navigate("ShowCard", { showId: entry.showId })}
-              />
-            ))}
-          </ScrollView>
-        </View>
+          {/* ── Profile Stats ── */}
+          <View style={styles.profileStats}>
+            <View style={styles.profileStatItem}>
+              <Text style={styles.profileStatNum}>{counts.showsCount}</Text>
+              <Text style={styles.profileStatLabel}>Shows</Text>
+            </View>
+            <View style={styles.profileStatItem}>
+              <Text style={styles.profileStatNum}>{counts.reviewsCount}</Text>
+              <Text style={styles.profileStatLabel}>Reviews</Text>
+            </View>
+            <View style={styles.profileStatItem}>
+              <Text style={styles.profileStatNum}>{counts.followersCount}</Text>
+              <Text style={styles.profileStatLabel}>Followers</Text>
+            </View>
+            <View style={styles.profileStatItem}>
+              <Text style={styles.profileStatNum}>{counts.followingCount}</Text>
+              <Text style={styles.profileStatLabel}>Following</Text>
+            </View>
+          </View>
 
-        {/* ── Rating Distribution ── */}
-        <RatingChart distribution={ratingDistribution}/>
+          {/* ── Edit Profile Button ── */}
+          <TouchableOpacity
+            style={styles.editProfileBtn}
+            onPress={() => navigation.navigate("EditProfile")}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.editProfileBtnText}>Edit Profile</Text>
+          </TouchableOpacity>
 
-        {/* ── Stats ── */}
-        <View style={styles.statsSection}>
+          {/* ── Recent Activity ── */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Recent Activity</Text>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.activityRow}
+            >
+              {recentActivity.map((entry) => (
+                <ActivityCard
+                  key={entry.id}
+                  showId={entry.showId}
+                  rating={entry.rating}
+                  posterUri={posters[entry.showId]}
+                  onPress={() =>
+                    navigation.navigate("ShowCard", { showId: entry.showId })
+                  }
+                />
+              ))}
+            </ScrollView>
+          </View>
 
-          {/* 
+          {/* ── Rating Distribution ── */}
+          <RatingChart distribution={ratingDistribution} />
+
+          {/* ── Stats ── */}
+          <View style={styles.statsSection}>
+            {/* 
             TODO: Replace navigation.navigate stubs below with real screen names
             once those sub-screens are built.
             e.g. navigation.navigate("AllShows"), navigation.navigate("AllReviews"), etc.
           */}
-          <StatRow
-            label="Diary"
-            value={counts.diaryCount}
-            onPress={() => navigation.navigate("Diary")}
-          />
-          <View style={styles.divider} />
+            <StatRow
+              label="Diary"
+              value={counts.diaryCount}
+              onPress={() => navigation.navigate("Diary")}
+            />
+            <View style={styles.divider} />
 
-          <StatRow
-            label="Lists"
-            value={counts.listsCount}
-            onPress={() => navigation.navigate("Lists")}
-          />
-          <View style={styles.divider} />
+            <StatRow
+              label="Lists"
+              value={counts.listsCount}
+              onPress={() => navigation.navigate("Lists")}
+            />
+            <View style={styles.divider} />
 
-          <StatRow
-            label="Shows"
-            value={counts.showsCount}
-            onPress={() => console.log("TODO: navigate to AllShows")}
-          />
-          <View style={styles.divider} />
+            <StatRow
+              label="Shows"
+              value={counts.showsCount}
+              onPress={() => console.log("TODO: navigate to AllShows")}
+            />
+            <View style={styles.divider} />
 
-          <StatRow
-            label="Reviews"
-            value={counts.reviewsCount}
-            onPress={() => console.log("TODO: navigate to AllReviews")}
-          />
-          <View style={styles.divider} />
+            <StatRow
+              label="Reviews"
+              value={counts.reviewsCount}
+              onPress={() => console.log("TODO: navigate to AllReviews")}
+            />
+            <View style={styles.divider} />
 
-          <StatRow
-            label="Likes"
-            value={counts.likesCount}
-            heart
-            onPress={() => console.log("TODO: navigate to Likes")}
-          />
-          <View style={styles.divider} />
+            <StatRow
+              label="Likes"
+              value={counts.likesCount}
+              heart
+              onPress={() => console.log("TODO: navigate to Likes")}
+            />
+            <View style={styles.divider} />
 
-          <StatRow
-            label="Tags"
-            value={counts.tagsCount}
-            onPress={() => console.log("TODO: navigate to Tags")}
-          />
-          <View style={styles.divider} />
+            <StatRow
+              label="Tags"
+              value={counts.tagsCount}
+              onPress={() => console.log("TODO: navigate to Tags")}
+            />
+            <View style={styles.divider} />
 
-          <StatRow
-            label="Following"
-            value={counts.followingCount}
-            onPress={() => console.log("TODO: navigate to Following")}
-          />
-          <View style={styles.divider} />
+            <StatRow
+              label="Following"
+              value={counts.followingCount}
+              onPress={() => console.log("TODO: navigate to Following")}
+            />
+            <View style={styles.divider} />
 
-          <StatRow
-            label="Followers"
-            value={counts.followersCount}
-            onPress={() => console.log("TODO: navigate to Followers")}
-          />
-        </View>
-
-      </ScrollView>
+            <StatRow
+              label="Followers"
+              value={counts.followersCount}
+              onPress={() => console.log("TODO: navigate to Followers")}
+            />
+          </View>
+        </ScrollView>
       </FadeInView>
     </SafeAreaView>
   );

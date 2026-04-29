@@ -9,6 +9,10 @@ import { auth, db } from "../config/firebase";
 WebBrowser.maybeCompleteAuthSession();
 
 const createUserDocIfNeeded = async (user) => {
+  // ensure the user object is fully hydrated from google
+  await user.reload();
+  const freshUser = auth.currentUser;
+
   const userRef = doc(db, "users", user.uid);
   const snap = await getDoc(userRef);
   if (!snap.exists()) {
@@ -36,7 +40,7 @@ const createUserDocIfNeeded = async (user) => {
   } else {
      const data = snap.data();
     if (!data.photoURL && user.photoURL) {
-      await updateDoc(userRef, { photoURL: user.photoURL });
+      await updateDoc(userRef, { photoURL: freshUser.photoURL });
     }
   }
 };
