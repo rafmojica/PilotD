@@ -13,8 +13,6 @@ import {
   SafeAreaView,
   StatusBar,
   RefreshControl,
-  // BUG FIX 1: Removed unused `Dimensions` import and `SCREEN_WIDTH` constant.
-  // It was imported and destructured but referenced nowhere in the component.
 } from "react-native";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
@@ -39,17 +37,6 @@ const C = {
   pillActive: "#52B788",
 };
 
-// BUG FIX 2: "Sci-Fi" label now maps to TVMaze's actual genre string "Science-Fiction".
-// Previously, the filter button showed "Sci-Fi" and the filter logic tried
-// s.genres?.includes("Science-Fiction") for the Sci-Fi case, BUT the active
-// filter value stored in state was "Sci-Fi". The filteredTrending logic compared
-// activeFilter === "Sci-Fi" correctly, but the includes() check used "Science-Fiction".
-// That part was actually written correctly in the original — the real issue was that
-// TVMaze genres contain "Science-Fiction" not "Sci-Fi", and the pill label and the
-// includes() target were inconsistent when other genres used the label directly
-// (e.g. activeFilter "Drama" → includes("Drama") ✓, but "Sci-Fi" → includes("Sci-Fi") ✗).
-// Fix: keep the display label as "Sci-Fi" for UX, but map it to "Science-Fiction"
-// in the filter logic via the GENRE_MAP lookup below.
 const GENRE_FILTERS = ["All", "Drama", "Comedy", "Thriller", "Sci-Fi", "Crime", "Action"];
 
 const GENRE_MAP = {
@@ -57,6 +44,33 @@ const GENRE_MAP = {
 };
 
 const toTvMazeGenre = (label) => GENRE_MAP[label] ?? label;
+
+// ─── Curated popular show IDs ────────────────────────────────────────────────
+// These are TVMaze IDs for critically acclaimed / widely popular shows.
+// Used for the "Top Rated" row since TVMaze doesn't have a true popularity ranking.
+
+const POPULAR_SHOW_IDS = [
+  169,    // Breaking Bad
+  132,    // The Wire
+  1771,   // Game of Thrones
+  41734,  // Severance
+  32043,  // Succession
+  1621,   // The Leftovers
+  56676,  // The Bear
+  54782,  // Andor
+  169,    // Breaking Bad (anchor)
+  4,      // Arrow (placeholder, swap as needed)
+  82,     // Suits
+  118,    // Sherlock
+  73,     // Doctor Who
+  526,    // Friends (US)
+  2993,   // Hannibal
+  6771,   // Stranger Things
+  55268,  // House of the Dragon
+  34481,  // Yellowstone
+  14,     // Fargo
+  44217,  // The Last of Us
+];
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -194,41 +208,92 @@ const HeroBanner = ({ show, navigation }) => {
 
 const Discover = ({ navigation }) => {
   const [featured, setFeatured] = useState(null);
-  const [trending, setTrending] = useState([]);
+  const [onAirToday, setOnAirToday] = useState([]);
   const [topRated, setTopRated] = useState([]);
-  const [recentAdds, setRecentAdds] = useState([]);
+  const [recentPremiers, setRecentPremiers] = useState([]);
   const [dramas, setDramas] = useState([]);
   const [comedies, setComedies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeFilter, setActiveFilter] = useState("All");
+  const [activeSort, setActiveSort] = useState("Trending");
 
   const fetchShows = useCallback(async () => {
     try {
-      const [p0, p1, p2] = await Promise.all([
-        fetch(`${TVMAZE}/shows?page=0`).then((r) => r.json()),
-        fetch(`${TVMAZE}/shows?page=1`).then((r) => r.json()),
-        fetch(`${TVMAZE}/shows?page=2`).then((r) => r.json()),
+      // Get today's date in YYYY-MM-DD for the schedule endpoint
+      const today = new Date().toISOString().slice(0, 10);
+
+      const [scheduleRes, popularRes, recentRes] = await Promise.all([
+        // Today's full US schedule — this gives us actually airing shows
+        fetch(`${TVMAZE}/schedule?country=US&date=${today}`).then((r) => r.json()),
+        // Fetch curated popular shows in parallel
+        Promise.allSettled(
+          POPULAR_SHOW_IDS.map((id) => fetch(`${TVMAZE}/shows/${id}`).then((r) => r.json()))
+        ),
+        // Recent pages (high page numbers = newer shows)
+        Promise.all([
+          fetch(`${TVMAZE}/shows?page=250`).then((r) => r.json()).catch(() => []),
+          fetch(`${TVMAZE}/shows?page=260`).then((r) => r.json()).catch(() => []),
+          fetch(`${TVMAZE}/shows?page=270`).then((r) => r.json()).catch(() => []),
+        ]),
       ]);
 
-      const all = [...p0, ...p1, ...p2].filter((s) => !!s.image?.medium);
+      // ── Process today's schedule ──
+      // Each schedule entry has show embedded; deduplicate by show id
+      const scheduleShows = [];
+      const seenIds = new Set();
+      if (Array.isArray(scheduleRes)) {
+        for (const entry of scheduleRes) {
+          const show = entry._embedded?.show ?? entry.show;
+          if (show && show.image?.medium && !seenIds.has(show.id)) {
+            seenIds.add(show.id);
+            scheduleShows.push(show);
+          }
+        }
+      }
 
-      const featuredPool = all.filter(
-        (s) => s.image?.original && (s.rating?.average ?? 0) >= 7.5
-      );
-      setFeatured(
-        featuredPool[Math.floor(Math.random() * Math.min(featuredPool.length, 8))]
-      );
+      // ── Process popular shows ──
+      const popularShows = popularRes
+        .filter((r) => r.status === "fulfilled" && r.value?.image?.medium)
+        .map((r) => r.value)
+        // Deduplicate (we have one duplicate ID in the list)
+        .filter((s, i, arr) => arr.findIndex((x) => x.id === s.id) === i);
 
-      const byRating = [...all].sort(
+      // ── Process recent premiers ──
+      const recentAll = [...recentRes[0], ...recentRes[1], ...recentRes[2]]
+        .filter((s) => s?.image?.medium && s?.premiered);
+      // Sort by premiere date descending
+      recentAll.sort((a, b) => new Date(b.premiered) - new Date(a.premiered));
+
+      // ── Top rated from popular pool ──
+      const byRating = [...popularShows].sort(
         (a, b) => (b.rating?.average ?? 0) - (a.rating?.average ?? 0)
       );
 
+      // ── Featured: pick from highly rated shows that have a backdrop image ──
+      const featuredPool = [
+        ...popularShows.filter((s) => s.image?.original && (s.rating?.average ?? 0) >= 8),
+        ...scheduleShows.filter((s) => s.image?.original && (s.rating?.average ?? 0) >= 7),
+      ];
+      const featuredPick = featuredPool[Math.floor(Math.random() * Math.min(featuredPool.length, 10))]
+        ?? popularShows[0];
+
+      setFeatured(featuredPick ?? null);
+      setOnAirToday(scheduleShows.slice(0, 20));
       setTopRated(byRating.slice(0, 20));
-      setTrending(all.slice(0, 20));
-      setRecentAdds(p2.filter((s) => s.image?.medium).slice(0, 18));
-      setDramas(all.filter((s) => s.genres?.includes("Drama")).slice(0, 18));
-      setComedies(all.filter((s) => s.genres?.includes("Comedy")).slice(0, 18));
+      setRecentPremiers(recentAll.slice(0, 20));
+      setDramas(
+        [...popularShows, ...scheduleShows]
+          .filter((s) => s.genres?.includes("Drama") && s.image?.medium)
+          .filter((s, i, arr) => arr.findIndex((x) => x.id === s.id) === i)
+          .slice(0, 18)
+      );
+      setComedies(
+        [...popularShows, ...scheduleShows]
+          .filter((s) => s.genres?.includes("Comedy") && s.image?.medium)
+          .filter((s, i, arr) => arr.findIndex((x) => x.id === s.id) === i)
+          .slice(0, 18)
+      );
     } catch (err) {
       console.error("[Discover] fetch error:", err);
     } finally {
@@ -255,14 +320,26 @@ const Discover = ({ navigation }) => {
     );
   }
 
-  // BUG FIX 2 (continued): Use toTvMazeGenre() to translate the pill label
-  // to the correct TVMaze genre string before filtering.
-  const filteredTrending =
+  // Genre-filter the on-air pool, fall back to topRated if empty
+  const filteredOnAir =
     activeFilter === "All"
-      ? trending
-      : trending.filter((s) =>
-          s.genres?.includes(toTvMazeGenre(activeFilter))
-        );
+      ? onAirToday
+      : onAirToday.filter((s) => s.genres?.includes(toTvMazeGenre(activeFilter)));
+
+  const basePool = filteredOnAir.length > 0
+    ? filteredOnAir
+    : topRated.filter((s) =>
+        activeFilter === "All" ? true : s.genres?.includes(toTvMazeGenre(activeFilter))
+      );
+
+  // Apply sort to the browseable "first row" pool
+  const trendingDisplay = [...basePool].sort((a, b) => {
+    if (activeSort === "Top Rated") return (b.rating?.average ?? 0) - (a.rating?.average ?? 0);
+    if (activeSort === "A–Z") return (a.name ?? "").localeCompare(b.name ?? "");
+    if (activeSort === "New") return new Date(b.premiered ?? 0) - new Date(a.premiered ?? 0);
+    // "Trending" — keep original order (on-air order / curated order)
+    return 0;
+  });
 
   return (
     <SafeAreaView style={styles.screen}>
@@ -303,12 +380,6 @@ const Discover = ({ navigation }) => {
         </View>
 
         {/* ── Genre filter pills ── */}
-        {/*
-          BUG FIX 3: Removed `gap: 8` from filterRow style (kept `marginRight: 8`
-          on filterPill). The original had BOTH, causing 16px between pills instead
-          of 8px. `gap` on a ScrollView's contentContainerStyle is also less
-          reliable than margin on items, so margin is the safer choice here.
-        */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -335,15 +406,67 @@ const Discover = ({ navigation }) => {
           ))}
         </ScrollView>
 
+        {/* ── Sort bar ── */}
+        <View style={styles.sortBar}>
+          {["Trending", "Top Rated", "A–Z", "New"].map((opt) => (
+            <TouchableOpacity
+              key={opt}
+              style={[styles.sortChip, activeSort === opt && styles.sortChipActive]}
+              onPress={() => setActiveSort(opt)}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.sortChipText, activeSort === opt && styles.sortChipTextActive]}>
+                {opt}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
         {/* ── Hero banner ── */}
         <HeroBanner show={featured} navigation={navigation} />
 
         {/* ── Show rows ── */}
-        <SectionRow emoji="🔥" title="Trending Now" data={filteredTrending} navigation={navigation} />
-        <SectionRow emoji="⭐" title="Top Rated All Time" data={topRated} navigation={navigation} />
-        <SectionRow emoji="✨" title="New Additions" data={recentAdds} navigation={navigation} />
-        <SectionRow emoji="🎭" title="Popular Dramas" data={dramas} navigation={navigation} />
-        <SectionRow emoji="😂" title="Fan Favorite Comedies" data={comedies} navigation={navigation} />
+        {basePool.length > 0 && (
+          <SectionRow
+            emoji="📺"
+            title={
+              activeSort === "Top Rated" ? "Top Rated Shows" :
+              activeSort === "A–Z" ? "Shows A–Z" :
+              activeSort === "New" ? "Newest Shows" :
+              "On Air Today"
+            }
+            data={trendingDisplay}
+            navigation={navigation}
+          />
+        )}
+        <SectionRow
+          emoji="⭐"
+          title="Top Rated All Time"
+          data={topRated}
+          navigation={navigation}
+        />
+        <SectionRow
+          emoji="✨"
+          title="Recently Added"
+          data={recentPremiers}
+          navigation={navigation}
+        />
+        {dramas.length > 0 && (
+          <SectionRow
+            emoji="🎭"
+            title="Popular Dramas"
+            data={dramas}
+            navigation={navigation}
+          />
+        )}
+        {comedies.length > 0 && (
+          <SectionRow
+            emoji="😂"
+            title="Fan Favorite Comedies"
+            data={comedies}
+            navigation={navigation}
+          />
+        )}
 
         <View style={{ height: 40 }} />
       </ScrollView>
@@ -436,8 +559,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
 
-  // BUG FIX 3: Removed `gap: 8` from filterRow. Spacing is now handled
-  // exclusively by `marginRight: 8` on each filterPill item.
   filterRow: {
     paddingHorizontal: 20,
     paddingVertical: 10,
@@ -464,6 +585,34 @@ const styles = StyleSheet.create({
   },
   filterPillTextActive: {
     color: "#fff",
+  },
+
+  // Sort bar
+  sortBar: {
+    flexDirection: "row",
+    paddingHorizontal: 20,
+    paddingBottom: 14,
+    gap: 8,
+  },
+  sortChip: {
+    paddingHorizontal: 13,
+    paddingVertical: 6,
+    borderRadius: 8,
+    backgroundColor: C.surface,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  sortChipActive: {
+    backgroundColor: C.accentSoft,
+    borderColor: C.accent + "80",
+  },
+  sortChipText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: C.muted,
+  },
+  sortChipTextActive: {
+    color: C.accent,
   },
 
   // Hero banner
@@ -542,8 +691,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
     marginBottom: 6,
   },
-  // BUG FIX (minor): heroSummary was using off-palette "#9E9EB5" (purple-toned).
-  // Changed to C.subtext which is the correct muted text color in this palette.
   heroSummary: {
     fontSize: 12,
     color: C.subtext,
@@ -604,12 +751,6 @@ const styles = StyleSheet.create({
     fontFamily: "DMSans_700Bold",
     color: C.text,
     letterSpacing: -0.1,
-  },
-  seeAll: {
-    fontSize: 12,
-    color: C.accent,
-    fontWeight: "600",
-    letterSpacing: 0.2,
   },
   hList: {
     paddingLeft: 20,
