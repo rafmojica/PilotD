@@ -21,9 +21,9 @@ const createUserDocIfNeeded = async (user) => {
       .replace(/[^a-z0-9]/g, "");
     await setDoc(userRef, {
       username: baseUsername,
-      displayName: user.displayName || baseUsername,
+      displayName: freshUser.displayName || baseUsername,
       bio: "",
-      photoURL: user.photoURL || "",
+      photoURL: freshUser.photoURL || "",
       followerCount: 0,
       followingCount: 0,
       totpEnabled: false,
@@ -52,6 +52,7 @@ export const useGoogleAuth = () => {
 
   const [request, response, promptAsync] = Google.useAuthRequest({
     webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
   });
 
   // Native: handle the OAuth response from expo-auth-session

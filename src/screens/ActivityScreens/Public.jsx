@@ -184,7 +184,7 @@ const StarRating = ({ rating }) => {
   return <Text style={styles.stars}>{stars.join("")}</Text>;
 };
 
-const TrendingStrip = () => (
+const TrendingStrip = ({ navigation }) => (
   <View style={styles.trendingSection}>
     <Text style={styles.trendingSectionTitle}>Trending This Week</Text>
     <ScrollView
@@ -193,7 +193,7 @@ const TrendingStrip = () => (
       contentContainerStyle={styles.trendingScroll}
     >
       {TRENDING_SHOWS.map((show) => (
-        <TouchableOpacity key={show.id} style={styles.trendingCard}>
+        <TouchableOpacity key={show.id} style={styles.trendingCard} onPress={() => navigation.navigate("ShowCard", { showId: show.id })}>
           <Image source={{ uri: show.posterUrl }} style={styles.trendingPoster} />
           <Text style={styles.trendingShowTitle} numberOfLines={2}>
             {show.title}
@@ -204,7 +204,7 @@ const TrendingStrip = () => (
   </View>
 );
 
-const PublicActivityCard = ({ item }) => (
+const PublicActivityCard = ({ item, navigation }) => (
   <View style={styles.card}>
     {item.isTrending && (
       <View style={styles.trendingBadge}>
@@ -228,7 +228,7 @@ const PublicActivityCard = ({ item }) => (
       </TouchableOpacity>
     </View>
 
-    <View style={styles.showRow}>
+    <TouchableOpacity activeOpacity={0.8} onPress={() => navigation.navigate("ShowCard", { showId: item.show.id })} style={styles.showRow}>
       <Image source={{ uri: item.show.posterUrl }} style={styles.poster} />
       <View style={styles.showInfo}>
         <Text style={styles.showTitle}>{item.show.title}</Text>
@@ -245,7 +245,7 @@ const PublicActivityCard = ({ item }) => (
           </View>
         ) : null}
       </View>
-    </View>
+    </TouchableOpacity>
 
     <View style={styles.cardFooter}>
       <TouchableOpacity style={styles.footerBtn}>
@@ -265,7 +265,7 @@ const PublicActivityCard = ({ item }) => (
 
 // ─── Screen ───────────────────────────────────────────────────────────────────
 
-const Public = () => {
+const Public = ({ navigation }) => {
   const [activeFilter, setActiveFilter] = useState("All");
 
   const filtered = MOCK_PUBLIC_ACTIVITY.filter((item) => {
@@ -288,12 +288,12 @@ const Public = () => {
       <FlatList
         data={filtered}
         keyExtractor={(item) => item.id}
-        renderItem={({ item }) => <PublicActivityCard item={item} />}
+        renderItem={({ item }) => <PublicActivityCard item={item} navigation={navigation} />}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
         ListHeaderComponent={
           <>
-            <TrendingStrip />
+            <TrendingStrip navigation={navigation} />
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}

@@ -62,7 +62,7 @@ const SettingsRow = ({
         {sub ? <Text style={styles.rowSub}>{sub}</Text> : null}
       </View>
     </View>
-    {right !== undefined ? right : <Text style={styles.chevron}>›</Text>}{" "}
+    {right !== undefined ? right : <Text style={styles.chevron}>›</Text>}
   </TouchableOpacity>
 );
 

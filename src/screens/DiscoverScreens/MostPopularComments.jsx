@@ -215,7 +215,7 @@ const AvatarCircle = ({ initials, color, size = 40 }) => (
 
 // ─── ReviewCard component ─────────────────────────────────────────────────────
 
-const ReviewCard = ({ review, showData }) => {
+const ReviewCard = ({ review, showData, navigation }) => {
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(review.likes);
 
@@ -232,6 +232,10 @@ const ReviewCard = ({ review, showData }) => {
 
   return (
     <View style={styles.reviewCard}>
+      <TouchableOpacity
+        activeOpacity={0.75}
+        onPress={() => navigation.navigate("ShowCard", { showId: review.showTvMazeId })}
+      >
       <View style={styles.showInfoRow}>
         {posterUri ? (
           <Image
@@ -255,6 +259,7 @@ const ReviewCard = ({ review, showData }) => {
         </View>
         <StarRating rating={review.rating} />
       </View>
+      </TouchableOpacity>
 
       <View style={styles.divider} />
 
@@ -382,7 +387,7 @@ const ReviewListHeader = ({ activeFilter, onFilterChange }) => (
 
 // ─── Main screen ──────────────────────────────────────────────────────────────
 
-const MostPopularComments = () => {
+const MostPopularComments = ({ navigation }) => {
   const [showsData, setShowsData] = useState({});
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -460,7 +465,7 @@ const MostPopularComments = () => {
   })();
 
   const renderItem = ({ item }) => (
-    <ReviewCard review={item} showData={showsData[item.id]} />
+    <ReviewCard review={item} showData={showsData[item.id]} navigation={navigation} />
   );
 
   // BUG FIX 2: Pass ReviewListHeader as a stable component reference with props,
