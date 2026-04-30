@@ -501,10 +501,13 @@ const ShowCard = ({ route, navigation }) => {
         }
       }
 
-      const [ratingResult, userRatingResult] = await Promise.allSettled([
+      const [ratingResult, userRatingResult, diaryResult] = await Promise.allSettled([
         getDoc(doc(db, "shows", String(showId))),
         auth.currentUser
           ? getDoc(doc(db, "users", auth.currentUser.uid, "showRatings", String(showId)))
+          : Promise.resolve(null),
+        auth.currentUser
+          ? getDocs(query(collection(db, "users", auth.currentUser.uid, "diary"), where("showId", "==", showId), where("type", "==", "show"), limit(1)))
           : Promise.resolve(null),
       ]);
 
@@ -516,6 +519,9 @@ const ShowCard = ({ route, navigation }) => {
       }
       if (userRatingResult.status === "fulfilled" && userRatingResult.value?.exists()) {
         setMyRating(userRatingResult.value.data().rating);
+      }
+      if (diaryResult.status === "fulfilled" && diaryResult.value && !diaryResult.value.empty) {
+        setLiked(diaryResult.value.docs[0].data().liked ?? false);
       }
     } catch (err) {
       console.error("[ShowCard] fetch error:", err);
@@ -552,6 +558,18 @@ const ShowCard = ({ route, navigation }) => {
       console.error("Toggle review like error:", err);
     }
   };
+
+  // ── Toggle liked on the show ──
+  const handleToggleLiked = useCallback(async () => {
+    const newLiked = !liked;
+    setLiked(newLiked);
+    try {
+      await writeDiaryEntry(showId, show?.name ?? "", myRating, null, newLiked);
+    } catch (err) {
+      console.error("[ShowCard] toggle liked error:", err);
+      setLiked(!newLiked);
+    }
+  }, [liked, showId, show?.name, myRating]);
 
   // ── Derived data ──
   const episodesForActiveSeason = allEpisodes.filter(
@@ -718,7 +736,7 @@ const ShowCard = ({ route, navigation }) => {
 
           <TouchableOpacity
             style={[styles.actionBtn, liked && { backgroundColor: C.accentSoft, borderColor: C.accent + "60" }]}
-            onPress={() => setLiked((p) => !p)}
+            onPress={handleToggleLiked}
           >
             <Text style={[styles.actionIcon, { color: liked ? C.accent : C.subtext }]}>👍</Text>
             <Text style={[styles.actionLabel, liked && { color: C.accent }]}>Like</Text>
