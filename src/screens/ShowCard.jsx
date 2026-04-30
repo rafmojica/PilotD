@@ -280,7 +280,7 @@ const RateModal = ({ visible, onClose, currentRating, onRate, showTitle }) => {
   );
 };
 
-const AddToListModal = ({ visible, onClose, showId }) => {
+const AddToListModal = ({ visible, onClose, showId, onListChange }) => {
   const [lists, setLists] = useState([]);
   const [saving, setSaving] = useState(null);
 
@@ -295,19 +295,20 @@ const AddToListModal = ({ visible, onClose, showId }) => {
   const toggle = async (list) => {
     setSaving(list.id);
     const already = (list.showIds ?? []).includes(showId);
+    const newShowIds = already
+      ? list.showIds.filter((id) => id !== showId)
+      : [...(list.showIds ?? []), showId];
     await updateDoc(doc(db, "lists", list.id), {
-      showIds: already
-        ? list.showIds.filter((id) => id !== showId)
-        : [...(list.showIds ?? []), showId],
+      showIds: newShowIds,
       updatedAt: serverTimestamp(),
     });
-    setLists((prev) =>
-      prev.map((l) =>
-        l.id === list.id
-          ? { ...l, showIds: already ? l.showIds.filter((id) => id !== showId) : [...(l.showIds ?? []), showId] }
-          : l
-      )
-    );
+    setLists((prev) => {
+      const newLists = prev.map((l) =>
+        l.id === list.id ? { ...l, showIds: newShowIds } : l
+      );
+      onListChange?.(newLists.some((l) => (l.showIds ?? []).includes(showId)));
+      return newLists;
+    });
     setSaving(null);
   };
 
@@ -369,6 +370,8 @@ const ShowCard = ({ route, navigation }) => {
   const [showSeasonPicker, setShowSeasonPicker] = useState(false);
   const [showAllReviews, setShowAllReviews] = useState(false);
   const [showRateModal, setShowRateModal] = useState(false);
+  const [showListModal, setShowListModal] = useState(false);
+  const [showInList, setShowInList] = useState(false);
   const [myRating, setMyRating] = useState(0);
   const [ratingSaved, setRatingSaved] = useState(false);
   const [hearted, setHearted] = useState(false);
@@ -453,13 +456,16 @@ const ShowCard = ({ route, navigation }) => {
         }
       }
 
-      const [ratingResult, userRatingResult, diaryResult] = await Promise.allSettled([
+      const [ratingResult, userRatingResult, diaryResult, listsResult] = await Promise.allSettled([
         getDoc(doc(db, "shows", String(showId))),
         auth.currentUser
           ? getDoc(doc(db, "users", auth.currentUser.uid, "showRatings", String(showId)))
           : Promise.resolve(null),
         auth.currentUser
           ? getDocs(query(collection(db, "users", auth.currentUser.uid, "diary"), where("showId", "==", showId), where("type", "==", "show"), limit(1)))
+          : Promise.resolve(null),
+        auth.currentUser
+          ? getDocs(query(collection(db, "lists"), where("userId", "==", auth.currentUser.uid), where("showIds", "array-contains", showId)))
           : Promise.resolve(null),
       ]);
 
@@ -474,6 +480,9 @@ const ShowCard = ({ route, navigation }) => {
       }
       if (diaryResult.status === "fulfilled" && diaryResult.value && !diaryResult.value.empty) {
         setLiked(diaryResult.value.docs[0].data().liked ?? false);
+      }
+      if (listsResult.status === "fulfilled" && listsResult.value) {
+        setShowInList(!listsResult.value.empty);
       }
     } catch (err) {
       console.error("[ShowCard] fetch error:", err);
@@ -687,11 +696,13 @@ const ShowCard = ({ route, navigation }) => {
           </TouchableOpacity>
           {/* Add to List */}
           <TouchableOpacity
-            style={styles.actionBtn}
+            style={[styles.actionBtn, showInList && { backgroundColor: C.accentSoft, borderColor: C.accent + "60" }]}
             onPress={() => setShowListModal(true)}
           >
-            <Text style={styles.actionIcon}>＋</Text>
-            <Text style={styles.actionLabel}>Lists</Text>
+            <Text style={[styles.actionIcon, { color: showInList ? C.accent : C.subtext }]}>
+              {showInList ? "✓" : "＋"}
+            </Text>
+            <Text style={[styles.actionLabel, showInList && { color: C.accent }]}>Lists</Text>
           </TouchableOpacity>
         </View>
 
@@ -985,6 +996,7 @@ const ShowCard = ({ route, navigation }) => {
         visible={showListModal}
         onClose={() => setShowListModal(false)}
         showId={showId}
+        onListChange={setShowInList}
       />
     </SafeAreaView>
   );
