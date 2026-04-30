@@ -83,7 +83,7 @@ const Signup = ({ navigation }) => {
         <TextInput
           style={styles.input}
           placeholder="Display Name"
-          placeholderTextColor="#888"
+          placeholderTextColor="#2D6A4F"
           value={displayName}
           onChangeText={setDisplayName}
           autoCapitalize="words"
@@ -91,7 +91,7 @@ const Signup = ({ navigation }) => {
         <TextInput
           style={styles.input}
           placeholder="Username"
-          placeholderTextColor="#888"
+          placeholderTextColor="#2D6A4F"
           value={username}
           onChangeText={(t) => setUsername(t.replace(/\s/g, ""))}
           autoCapitalize="none"
@@ -100,7 +100,7 @@ const Signup = ({ navigation }) => {
         <TextInput
           style={styles.input}
           placeholder="Email"
-          placeholderTextColor="#888"
+          placeholderTextColor="#2D6A4F"
           value={email}
           onChangeText={setEmail}
           keyboardType="email-address"
@@ -110,7 +110,7 @@ const Signup = ({ navigation }) => {
         <TextInput
           style={styles.input}
           placeholder="Password"
-          placeholderTextColor="#888"
+          placeholderTextColor="#2D6A4F"
           value={password}
           onChangeText={setPassword}
           secureTextEntry
@@ -178,7 +178,7 @@ const friendlyError = (code) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#0f0f0f",
+    backgroundColor: "#081C15",
   },
   inner: {
     flexGrow: 1,
@@ -187,29 +187,29 @@ const styles = StyleSheet.create({
     paddingVertical: 48,
   },
   title: {
-    fontSize: 32,
-    fontWeight: "700",
-    color: "#fff",
+    fontSize: 36,
+    fontFamily: "DMSerifDisplay_400Regular",
+    color: "#D8F3DC",
     marginBottom: 6,
   },
   subtitle: {
     fontSize: 15,
-    color: "#888",
+    color: "#74C69D",
     marginBottom: 36,
   },
   input: {
-    backgroundColor: "#1c1c1c",
-    color: "#fff",
+    backgroundColor: "#0D2319",
+    color: "#D8F3DC",
     borderRadius: 10,
     paddingHorizontal: 16,
     paddingVertical: 14,
     fontSize: 15,
     marginBottom: 14,
     borderWidth: 1,
-    borderColor: "#2a2a2a",
+    borderColor: "#1B4332",
   },
   button: {
-    backgroundColor: "#e63946",
+    backgroundColor: "#52B788",
     borderRadius: 10,
     paddingVertical: 15,
     alignItems: "center",
@@ -219,12 +219,12 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   buttonText: {
-    color: "#fff",
+    color: "#081C15",
     fontSize: 16,
-    fontWeight: "600",
+    fontWeight: "700",
   },
   error: {
-    color: "#e63946",
+    color: "#EF4444",
     fontSize: 13,
     marginBottom: 10,
   },
@@ -236,32 +236,34 @@ const styles = StyleSheet.create({
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: "#2a2a2a",
+    backgroundColor: "#1B4332",
   },
   dividerText: {
-    color: "#888",
+    color: "#2D6A4F",
     marginHorizontal: 12,
     fontSize: 13,
   },
   googleButton: {
-    backgroundColor: "#fff",
+    backgroundColor: "transparent",
     borderRadius: 10,
     paddingVertical: 15,
     alignItems: "center",
+    borderWidth: 1,
+    borderColor: "#2D6A4F",
   },
   googleButtonText: {
-    color: "#000",
+    color: "#95D5B2",
     fontSize: 16,
     fontWeight: "600",
   },
   loginLink: {
-    color: "#888",
+    color: "#74C69D",
     textAlign: "center",
     marginTop: 24,
     fontSize: 14,
   },
   loginLinkBold: {
-    color: "#fff",
+    color: "#52B788",
     fontWeight: "600",
   },
 });
