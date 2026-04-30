@@ -1,254 +1,255 @@
-// src/screens/ActivityScreens/Friends.jsx
-
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
+import FadeInView from "../../components/FadeInView";
+import InitialsAvatar from "../../components/InitialsAvatar";
+import Stars from "../../components/Stars";
 import {
   View,
   Text,
-  FlatList,
   StyleSheet,
-  Image,
-  Pressable,
+  ScrollView,
   TouchableOpacity,
+  Image,
+  ActivityIndicator,
   SafeAreaView,
   StatusBar,
+  RefreshControl,
 } from "react-native";
-import InitialsAvatar from "../../components/InitialsAvatar";
-import FadeInView from "../../components/FadeInView";
-import Svg, { Path } from "react-native-svg";
-import { auth } from "../../config/firebase";
+import { auth, db } from "../../config/firebase";
+import {
+  collection,
+  getDocs,
+  query,
+  orderBy,
+  limit,
+  doc,
+  getDoc,
+  where,
+} from "firebase/firestore";
+import { useFocusEffect } from "@react-navigation/native";
+import Svg, { Path, Circle, Rect, Polyline } from "react-native-svg";
 
-// ─── Mock Data ────────────────────────────────────────────────────────────────
+// ─── Constants ────────────────────────────────────────────────────────────────
 
-const MOCK_FRIEND_ACTIVITY = [
-  {
-    id: "1",
-    friend: {
-      id: "u1",
-      username: "elena_watches",
-      displayName: "Elena",
-      avatarUrl: "https://i.pravatar.cc/150?img=47",
-    },
-    type: "reviewed",
-    show: {
-      id: "s1",
-      title: "The Bear",
-      year: 2022,
-      posterUrl: "https://picsum.photos/seed/bear/120/180",
-      season: 3,
-    },
-    rating: 4.5,
-    review:
-      "Season 3 somehow manages to top everything that came before it. The kitchen sequences are genuinely stressful in the best way.",
-    timestamp: "2h ago",
-    likeCount: 14,
-    commentCount: 3,
-  },
-  {
-    id: "2",
-    friend: {
-      id: "u2",
-      username: "marco_tv",
-      displayName: "Marco",
-      avatarUrl: "https://i.pravatar.cc/150?img=12",
-    },
-    type: "watched",
-    show: {
-      id: "s2",
-      title: "Severance",
-      year: 2022,
-      posterUrl: "https://picsum.photos/seed/severance/120/180",
-      season: 2,
-      episode: 6,
-    },
-    timestamp: "5h ago",
-    likeCount: 7,
-    commentCount: 1,
-  },
-  {
-    id: "3",
-    friend: {
-      id: "u3",
-      username: "priya.streams",
-      displayName: "Priya",
-      avatarUrl: "https://i.pravatar.cc/150?img=31",
-    },
-    type: "added_to_list",
-    show: {
-      id: "s3",
-      title: "Shōgun",
-      year: 2024,
-      posterUrl: "https://picsum.photos/seed/shogun/120/180",
-    },
-    listName: "2024 Favourites",
-    timestamp: "Yesterday",
-    likeCount: 2,
-    commentCount: 0,
-  },
-  {
-    id: "4",
-    friend: {
-      id: "u1",
-      username: "elena_watches",
-      displayName: "Elena",
-      avatarUrl: "https://i.pravatar.cc/150?img=47",
-    },
-    type: "liked",
-    show: {
-      id: "s4",
-      title: "Baby Reindeer",
-      year: 2024,
-      posterUrl: "https://picsum.photos/seed/reindeer/120/180",
-    },
-    timestamp: "Yesterday",
-    likeCount: 0,
-    commentCount: 0,
-  },
-  {
-    id: "5",
-    friend: {
-      id: "u4",
-      username: "james_binge",
-      displayName: "James",
-      avatarUrl: "https://i.pravatar.cc/150?img=68",
-    },
-    type: "reviewed",
-    show: {
-      id: "s5",
-      title: "House of the Dragon",
-      year: 2022,
-      posterUrl: "https://picsum.photos/seed/hotd/120/180",
-      season: 2,
-    },
-    rating: 3,
-    review: "Solid but uneven. The second half picks up massively.",
-    timestamp: "2 days ago",
-    likeCount: 9,
-    commentCount: 5,
-  },
-];
-
-// ─── Colors ───────────────────────────────────────────────────────────────────
+const TVMAZE = "https://api.tvmaze.com";
 
 const C = {
   bg: "#081C15",
-  surface: "#0d2b1d",
-  border: "rgba(45,106,79,0.2)",
+  surface: "#0D2319",
+  card: "#1B4332",
   accent: "#52B788",
-  accentPress: "rgba(82,183,136,0.05)",
+  accentSoft: "#52B78822",
+  gold: "#F59E0B",
   text: "#D8F3DC",
-  textSec: "#95D5B2",
-  muted: "#40916C",
-  star: "#F4A827",
-  rose: "#C4788A",
+  subtext: "#74C69D",
+  muted: "#2D6A4F",
+  border: "#1B4332",
+  border2: "#2D6A4F",
+  heart: "#EF4444",
+  heartSoft: "#EF444420",
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const getActivityLabel = (item) => {
-  switch (item.type) {
-    case "watched":
-      return item.show.episode
-        ? `watched S${item.show.season}E${item.show.episode} of`
-        : item.show.season
-          ? `finished Season ${item.show.season} of`
-          : "watched";
-    case "reviewed":
-      return "reviewed";
-    case "added_to_list":
-      return `added to list "${item.listName}"`;
-    case "liked":
-      return "liked";
-    default:
-      return "";
-  }
+const timeAgo = (timestamp) => {
+  if (!timestamp) return "";
+  const date = timestamp?.toDate?.() ?? new Date(timestamp);
+  const diff = (Date.now() - date.getTime()) / 1000;
+  if (diff < 60) return "just now";
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 };
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
+// ─── Section Header ───────────────────────────────────────────────────────────
 
-const StarRating = ({ rating }) => {
-  const stars = [];
-  for (let i = 1; i <= 5; i++) {
-    if (rating >= i) stars.push("★");
-    else if (rating >= i - 0.5) stars.push("½");
-    else stars.push("☆");
-  }
-  return <Text style={styles.stars}>{stars.join("")}</Text>;
-};
+const SectionLabel = ({ title }) => (
+  <Text style={styles.sectionLabel}>{title}</Text>
+);
 
-const ActivityItem = ({ item, onPressUser, onPressShow }) => {
-  const showThumb = item.type !== "added_to_list" && item.show?.posterUrl;
+// ─── Watch / Rating card ──────────────────────────────────────────────────────
 
+const WatchCard = ({ item, onShowPress }) => {
+  const isEpisode = item.type === "episode";
   return (
-    <Pressable
-      style={({ pressed }) => [
-        styles.item,
-        pressed && { backgroundColor: "rgba(82,183,136,0.05)" },
-      ]}
-      onPress={() => onPressShow(item.show)}
-    >
-      <TouchableOpacity onPress={() => onPressUser(item.friend)} activeOpacity={0.7}>
-        <InitialsAvatar
-          name={item.friend.displayName}
-          size={38}
-          style={{ flexShrink: 0, borderWidth: 1.5, borderColor: "#40916C" }}
-        />
-      </TouchableOpacity>
+    <TouchableOpacity style={styles.card} onPress={onShowPress} activeOpacity={0.8}>
+      {/* Poster */}
+      {item.posterUri ? (
+        <Image source={{ uri: item.posterUri }} style={styles.cardPoster} resizeMode="cover" />
+      ) : (
+        <View style={[styles.cardPoster, styles.posterPlaceholder]}>
+          <Svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+            <Rect x="2" y="7" width="20" height="15" rx="2" />
+            <Polyline points="17 2 12 7 7 2" />
+          </Svg>
+        </View>
+      )}
 
-      <View style={styles.body}>
-        <View style={styles.topLine}>
-          <TouchableOpacity onPress={() => onPressUser(item.friend)} activeOpacity={0.7}>
-            <Text style={styles.username}>{item.friend.displayName}</Text>
-          </TouchableOpacity>
-          <Text style={styles.action}> {getActivityLabel(item)} </Text>
-          <Text style={styles.showName}>{item.show.title}</Text>
+      <View style={styles.cardBody}>
+        {/* Friend info */}
+        <View style={styles.cardUserRow}>
+          <InitialsAvatar name={item.friendName} size={22} color={item.avatarColor} />
+          <Text style={styles.cardUsername}>@{item.friendUsername}</Text>
+          <Text style={styles.cardTime}>{timeAgo(item.timestamp)}</Text>
         </View>
 
-        {item.rating !== undefined && (
-          <View style={styles.ratingRow}>
-            <StarRating rating={item.rating} />
-          </View>
-        )}
+        {/* Action line */}
+        <View style={styles.cardActionRow}>
+          <Text style={styles.cardVerb}>
+            {item.rating > 0 ? "rated" : "watched"}{" "}
+          </Text>
+          <Text style={styles.cardShowName} numberOfLines={1}>
+            {item.showName}
+          </Text>
+        </View>
 
-        {item.review ? (
-          <View style={styles.reviewBlock}>
-            <Text style={styles.reviewText} numberOfLines={3}>
-              {item.review}
-            </Text>
-          </View>
+        {isEpisode && item.episodeName ? (
+          <Text style={styles.cardEpisode} numberOfLines={1}>
+            S{String(item.season ?? "?").padStart(2, "0")}E{String(item.episode ?? "?").padStart(2, "0")} · {item.episodeName}
+          </Text>
         ) : null}
 
-        <Text style={styles.timestamp}>{item.timestamp}</Text>
+        {item.rating > 0 && <Stars rating={item.rating} size={11} />}
 
-        <View style={styles.footer}>
-          <TouchableOpacity style={styles.footerBtn}>
-            <Svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={C.rose} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <Path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
-            </Svg>
-            <Text style={styles.footerCount}>{item.likeCount}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.footerBtn}>
-            <Svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <Path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-            </Svg>
-            <Text style={styles.footerCount}>{item.commentCount}</Text>
-          </TouchableOpacity>
-        </View>
+        {item.liked && (
+          <Text style={styles.likedTag}>♥ liked</Text>
+        )}
       </View>
-
-      {showThumb && (
-        <TouchableOpacity onPress={() => onPressShow(item.show)} activeOpacity={0.8}>
-          <Image source={{ uri: item.show.posterUrl }} style={styles.thumb} />
-        </TouchableOpacity>
-      )}
-    </Pressable>
+    </TouchableOpacity>
   );
 };
 
-// ─── Screen ───────────────────────────────────────────────────────────────────
+// ─── Review card ──────────────────────────────────────────────────────────────
+
+const ReviewCard = ({ item, onShowPress }) => (
+  <TouchableOpacity style={styles.card} onPress={onShowPress} activeOpacity={0.8}>
+    {item.posterUri ? (
+      <Image source={{ uri: item.posterUri }} style={styles.cardPoster} resizeMode="cover" />
+    ) : (
+      <View style={[styles.cardPoster, styles.posterPlaceholder]}>
+        <Svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+          <Rect x="2" y="7" width="20" height="15" rx="2" />
+          <Polyline points="17 2 12 7 7 2" />
+        </Svg>
+      </View>
+    )}
+
+    <View style={styles.cardBody}>
+      <View style={styles.cardUserRow}>
+        <InitialsAvatar name={item.friendName} size={22} color={item.avatarColor} />
+        <Text style={styles.cardUsername}>@{item.friendUsername}</Text>
+        <Text style={styles.cardTime}>{timeAgo(item.timestamp)}</Text>
+      </View>
+
+      <View style={styles.cardActionRow}>
+        <Text style={styles.cardVerb}>reviewed </Text>
+        <Text style={styles.cardShowName} numberOfLines={1}>{item.showName}</Text>
+      </View>
+
+      {item.rating > 0 && <Stars rating={item.rating} size={11} />}
+
+      <Text style={styles.reviewSnippet} numberOfLines={3}>
+        {`"${item.reviewText}"`}
+      </Text>
+    </View>
+  </TouchableOpacity>
+);
+
+// ─── Follow card ──────────────────────────────────────────────────────────────
+
+const FollowCard = ({ item }) => (
+  <View style={[styles.card, { alignItems: "center" }]}>
+    <InitialsAvatar name={item.friendName} size={40} color={item.avatarColor} />
+
+    <View style={styles.cardBody}>
+      <View style={styles.cardUserRow}>
+        <Text style={styles.cardUsername}>@{item.friendUsername}</Text>
+        <Text style={styles.cardTime}>{timeAgo(item.timestamp)}</Text>
+      </View>
+      <View style={styles.cardActionRow}>
+        <Text style={styles.cardVerb}>followed </Text>
+        <Text style={styles.cardShowName}>@{item.followedUsername}</Text>
+      </View>
+    </View>
+  </View>
+);
+
+// ─── Empty state ──────────────────────────────────────────────────────────────
+
+const EmptyFeed = ({ onNavigate }) => (
+  <View style={styles.emptyWrap}>
+    <Svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round">
+      <Path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+      <Circle cx="9" cy="7" r="4" />
+      <Path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+      <Path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </Svg>
+    <Text style={styles.emptyTitle}>No friend activity yet</Text>
+    <Text style={styles.emptySubtitle}>
+      Follow people to see their ratings, reviews, and watchlists here
+    </Text>
+    <TouchableOpacity style={styles.emptyBtn} onPress={onNavigate}>
+      <Text style={styles.emptyBtnText}>Find People</Text>
+    </TouchableOpacity>
+  </View>
+);
+
+// ─── Main Screen ──────────────────────────────────────────────────────────────
 
 const Friends = ({ navigation }) => {
-  const [activities] = useState(MOCK_FRIEND_ACTIVITY);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [watchItems, setWatchItems] = useState([]);
+  const [reviewItems, setReviewItems] = useState([]);
+  const [followItems, setFollowItems] = useState([]);
+  const [posterMap, setPosterMap] = useState({});
 
+  const fetchAll = useCallback(async (silent = false) => {
+    const uid = auth.currentUser?.uid;
+    if (!uid) return;
+    if (!silent) setLoading(true);
+
+    try {
+      // 1. Get following list
+      const followingSnap = await getDocs(
+        collection(db, "users", uid, "following")
+      );
+      const friendUids = followingSnap.docs.map((d) => d.id);
+
+      if (friendUids.length === 0) {
+        setWatchItems([]);
+        setReviewItems([]);
+        setFollowItems([]);
+        setLoading(false);
+        setRefreshing(false);
+        return;
+      }
+
+      // 2. Fetch friend profiles
+      const profileResults = await Promise.allSettled(
+        friendUids.map((fuid) => getDoc(doc(db, "users", fuid)))
+      );
+      const profiles = {};
+      profileResults.forEach((r) => {
+        if (r.status === "fulfilled" && r.value.exists()) {
+          profiles[r.value.id] = r.value.data();
+        }
+      });
+
+      // 3. Fetch diary entries (watches + ratings) for each friend
+      const diaryResults = await Promise.allSettled(
+        friendUids.map((fuid) =>
+          getDocs(
+            query(
+              collection(db, "users", fuid, "diary"),
+              orderBy("watchedDate", "desc"),
+              limit(5)
+            )
+          ).then((snap) =>
+            snap.docs.map((d) => ({ ...d.data(), friendUid: fuid }))
+          )
+        )
+      );
   const handlePressUser = (friend) => {
     if (friend.id === auth.currentUser?.uid) {
       navigation.navigate("ProfileTab");
@@ -257,154 +258,393 @@ const Friends = ({ navigation }) => {
     }
   };
 
-  const handlePressShow = (show) => {
-    navigation.navigate("ShowCard", { showId: show.id });
+      const allDiary = [];
+      diaryResults.forEach((r) => {
+        if (r.status === "fulfilled") allDiary.push(...r.value);
+      });
+
+      // 4. Fetch reviews for each friend from shows collection
+      const reviewResults = await Promise.allSettled(
+        friendUids.map((fuid) =>
+          getDocs(
+            query(
+              // Reviews stored under shows/{showId}/reviews with uid field
+              // We query globally — adjust if your schema differs
+              collection(db, "users", fuid, "reviews"),
+              orderBy("createdAt", "desc"),
+              limit(3)
+            )
+          ).then((snap) =>
+            snap.docs.map((d) => ({ ...d.data(), friendUid: fuid }))
+          )
+        )
+      );
+
+      const allReviews = [];
+      reviewResults.forEach((r) => {
+        if (r.status === "fulfilled") allReviews.push(...r.value);
+      });
+
+      // 5. Fetch follow events for each friend
+      const followResults = await Promise.allSettled(
+        friendUids.map((fuid) =>
+          getDocs(
+            query(
+              collection(db, "users", fuid, "following"),
+              orderBy("followedAt", "desc"),
+              limit(3)
+            )
+          ).then((snap) =>
+            snap.docs.map((d) => ({
+              followedUid: d.id,
+              timestamp: d.data().followedAt,
+              friendUid: fuid,
+            }))
+          )
+        )
+      );
+
+      const allFollows = [];
+      followResults.forEach((r) => {
+        if (r.status === "fulfilled") allFollows.push(...r.value);
+      });
+
+      // 6. Fetch followed-user usernames for follow events
+      const followedUids = [...new Set(allFollows.map((f) => f.followedUid))];
+      const followedProfiles = {};
+      await Promise.allSettled(
+        followedUids.map((fuid) =>
+          getDoc(doc(db, "users", fuid)).then((snap) => {
+            if (snap.exists()) followedProfiles[fuid] = snap.data();
+          })
+        )
+      );
+
+      // 7. Collect show IDs and fetch posters
+      const showIds = [
+        ...new Set([
+          ...allDiary.map((d) => d.showId).filter(Boolean),
+          ...allReviews.map((r) => r.showId).filter(Boolean),
+        ]),
+      ];
+
+      const posterResults = await Promise.allSettled(
+        showIds.map((id) =>
+          fetch(`${TVMAZE}/shows/${id}`)
+            .then((r) => r.json())
+            .then((data) => ({ id: String(id), uri: data?.image?.medium ?? null }))
+        )
+      );
+      const newPosterMap = {};
+      posterResults.forEach((r) => {
+        if (r.status === "fulfilled" && r.value.uri)
+          newPosterMap[r.value.id] = r.value.uri;
+      });
+      setPosterMap(newPosterMap);
+
+      // 8. Shape data for render
+      const watches = allDiary
+        .filter((d) => d.showId)
+        .sort((a, b) => (b.watchedDate?.toMillis?.() ?? 0) - (a.watchedDate?.toMillis?.() ?? 0))
+        .slice(0, 20)
+        .map((d) => {
+          const p = profiles[d.friendUid] ?? {};
+          return {
+            id: `${d.friendUid}-${d.showId}-${d.watchedDate?.toMillis?.()}`,
+            friendName: p.displayName ?? "Friend",
+            friendUsername: p.username ?? "unknown",
+            avatarColor: p.avatarColor ?? C.accent,
+            showName: d.showName ?? "Unknown Show",
+            showId: d.showId,
+            rating: d.rating ?? 0,
+            liked: d.liked ?? false,
+            type: d.type ?? "show",
+            episodeName: d.episodeName ?? null,
+            season: d.seasonNumber ?? null,
+            episode: d.episodeNumber ?? null,
+            posterUri: newPosterMap[String(d.showId)] ?? null,
+            timestamp: d.watchedDate,
+          };
+        });
+
+      const reviews = allReviews
+        .sort((a, b) => (b.createdAt?.toMillis?.() ?? 0) - (a.createdAt?.toMillis?.() ?? 0))
+        .slice(0, 10)
+        .map((r) => {
+          const p = profiles[r.friendUid] ?? {};
+          return {
+            id: `rev-${r.friendUid}-${r.showId}-${r.createdAt?.toMillis?.()}`,
+            friendName: p.displayName ?? "Friend",
+            friendUsername: p.username ?? "unknown",
+            avatarColor: p.avatarColor ?? C.accent,
+            showName: r.showName ?? "Unknown Show",
+            showId: r.showId,
+            rating: r.rating ?? 0,
+            reviewText: r.text ?? r.review ?? "",
+            posterUri: newPosterMap[String(r.showId)] ?? null,
+            timestamp: r.createdAt,
+          };
+        })
+        .filter((r) => r.reviewText.length > 0);
+
+      const follows = allFollows
+        .sort((a, b) => (b.timestamp?.toMillis?.() ?? 0) - (a.timestamp?.toMillis?.() ?? 0))
+        .slice(0, 10)
+        .map((f) => {
+          const p = profiles[f.friendUid] ?? {};
+          const fp = followedProfiles[f.followedUid] ?? {};
+          return {
+            id: `follow-${f.friendUid}-${f.followedUid}`,
+            friendName: p.displayName ?? "Friend",
+            friendUsername: p.username ?? "unknown",
+            avatarColor: p.avatarColor ?? C.accent,
+            followedUsername: fp.username ?? "someone",
+            timestamp: f.timestamp,
+          };
+        });
+
+      setWatchItems(watches);
+      setReviewItems(reviews);
+      setFollowItems(follows);
+    } catch (err) {
+      console.error("[Friends] fetch error:", err);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchAll();
+    }, [fetchAll])
+  );
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    fetchAll(true);
   };
 
-  return (
-    <SafeAreaView style={styles.safe}>
-      <StatusBar barStyle="light-content" backgroundColor={C.bg} />
+  const hasAny =
+    watchItems.length > 0 || reviewItems.length > 0 || followItems.length > 0;
 
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.loadingScreen}>
+        <ActivityIndicator size="large" color={C.accent} />
+        <Text style={styles.loadingText}>Loading activity…</Text>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={styles.screen}>
+      <StatusBar barStyle="light-content" backgroundColor={C.bg} />
       <FadeInView>
+        {/* ── Header ── */}
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Activity</Text>
-          {/* BELL ICON */}
-          <View style={styles.bellWrap}>
-            <Svg
-              width="18"
-              height="18"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="#95D5B2"
-              strokeWidth="2"
-              strokeLinecap="round"
-            >
-              <Path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-              <Path d="M13.73 21a2 2 0 0 1-3.46 0" />
-            </Svg>
-            <View style={styles.bellDot} />
-          </View>
+          <Text style={styles.headerTitle}>Friends</Text>
+          <TouchableOpacity
+            style={styles.headerTab}
+            onPress={() => navigation.navigate("Public")}
+          >
+            <Text style={styles.headerTabText}>Popular ›</Text>
+          </TouchableOpacity>
         </View>
 
-        {activities.length === 0 ? (
-          <View style={styles.empty}>
-            <Text style={styles.emptyTitle}>No activity yet</Text>
-            <Text style={styles.emptySubtitle}>
-              Follow people to see what they are watching.
-            </Text>
-          </View>
-        ) : (
-          <FlatList
-            data={activities}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => (
-              <ActivityItem item={item} onPressUser={handlePressUser} onPressShow={handlePressShow} />
-            )}
-            showsVerticalScrollIndicator={false}
-            contentContainerStyle={{ paddingBottom: 20 }}
-          />
-        )}
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scroll}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor={C.accent}
+            />
+          }
+        >
+          {!hasAny ? (
+            <EmptyFeed onNavigate={() => navigation.navigate("Search")} />
+          ) : (
+            <>
+              {/* ── Recent Watches & Ratings ── */}
+              {watchItems.length > 0 && (
+                <View style={styles.section}>
+                  <SectionLabel title="Recent Activity" />
+                  {watchItems.map((item) => (
+                    <WatchCard
+                      key={item.id}
+                      item={item}
+                      onShowPress={() =>
+                        navigation.navigate("ShowCard", { showId: item.showId })
+                      }
+                    />
+                  ))}
+                </View>
+              )}
+
+              {/* ── Recent Reviews ── */}
+              {reviewItems.length > 0 && (
+                <View style={styles.section}>
+                  <SectionLabel title="Recent Reviews" />
+                  {reviewItems.map((item) => (
+                    <ReviewCard
+                      key={item.id}
+                      item={item}
+                      onShowPress={() =>
+                        navigation.navigate("ShowCard", { showId: item.showId })
+                      }
+                    />
+                  ))}
+                </View>
+              )}
+
+              {/* ── Recent Follows ── */}
+              {followItems.length > 0 && (
+                <View style={styles.section}>
+                  <SectionLabel title="New Connections" />
+                  {followItems.map((item) => (
+                    <FollowCard key={item.id} item={item} />
+                  ))}
+                </View>
+              )}
+            </>
+          )}
+        </ScrollView>
       </FadeInView>
     </SafeAreaView>
   );
 };
 
-export default Friends;
-
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: C.bg },
+  screen: { flex: 1, backgroundColor: C.bg },
+  scroll: { paddingHorizontal: 16, paddingBottom: 48, paddingTop: 4 },
+  loadingScreen: {
+    flex: 1, backgroundColor: C.bg,
+    justifyContent: "center", alignItems: "center", gap: 14,
+  },
+  loadingText: { color: C.subtext, fontSize: 14, fontWeight: "500" },
 
+  // Header
   header: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 12,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingTop: 18,
+    paddingBottom: 12,
   },
   headerTitle: {
     fontSize: 28,
     fontFamily: "DMSerifDisplay_400Regular",
     color: C.text,
-    letterSpacing: -0.5,
+    letterSpacing: -0.4,
   },
-  bellWrap: {
-    width: 36,
-    height: 36,
-    justifyContent: "center",
-    alignItems: "center",
-    position: "relative",
+  headerTab: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: C.surface,
+    borderWidth: 1,
+    borderColor: C.border2,
   },
-  bell: { fontSize: 20 },
-  bellDot: {
-    position: "absolute",
-    top: 2,
-    right: 2,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: C.rose,
+  headerTabText: {
+    fontSize: 12,
+    color: C.accent,
+    fontWeight: "600",
   },
 
-  item: {
+  // Section
+  section: { marginBottom: 28 },
+  sectionLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: C.subtext,
+    letterSpacing: 1.2,
+    textTransform: "uppercase",
+    marginBottom: 10,
+  },
+
+  // Cards
+  card: {
     flexDirection: "row",
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: C.border,
-    gap: 12,
-    alignItems: "flex-start",
-  },
-  itemPressed: {
-    backgroundColor: "rgba(82,183,136,0.05)",
-  },
-  body: { flex: 1 },
-  topLine: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    alignItems: "baseline",
-  },
-  username: { fontSize: 13, fontWeight: "600", color: C.text },
-  action: { fontSize: 13, color: C.textSec },
-  showName: { fontSize: 13, fontWeight: "500", color: C.accent },
-  ratingRow: { marginTop: 4 },
-  stars: { color: C.star, fontSize: 11, letterSpacing: 1 },
-  reviewBlock: {
-    marginTop: 8,
-    padding: 10,
     backgroundColor: C.surface,
-    borderRadius: 8,
-    borderLeftWidth: 2,
-    borderLeftColor: C.accent,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: C.border,
+    padding: 12,
+    marginBottom: 8,
+    gap: 12,
   },
-  reviewText: {
+  cardPoster: {
+    width: 52,
+    height: 76,
+    borderRadius: 7,
+    backgroundColor: C.card,
+  },
+  posterPlaceholder: {
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: C.border2,
+  },
+  cardBody: { flex: 1, gap: 4 },
+  cardUserRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  cardUsername: { fontSize: 12, color: C.accent, fontWeight: "700", flex: 1 },
+  cardTime: { fontSize: 11, color: C.muted },
+  cardActionRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center" },
+  cardVerb: { fontSize: 13, color: C.subtext },
+  cardShowName: {
+    fontSize: 13,
+    color: C.text,
+    fontWeight: "700",
+    flexShrink: 1,
+  },
+  cardEpisode: { fontSize: 11, color: C.muted, fontStyle: "italic" },
+  likedTag: { fontSize: 11, color: C.heart, fontWeight: "600" },
+  reviewSnippet: {
     fontSize: 12,
-    color: C.textSec,
+    color: C.subtext,
     lineHeight: 18,
     fontStyle: "italic",
-  },
-  timestamp: { fontSize: 11, color: C.muted, marginTop: 4 },
-  footer: { flexDirection: "row", gap: 16, marginTop: 8 },
-  footerBtn: { flexDirection: "row", alignItems: "center", gap: 4 },
-  footerIcon: { fontSize: 13, color: C.muted },
-  footerCount: { fontSize: 12, color: C.muted },
-  thumb: {
-    width: 42,
-    height: 60,
-    borderRadius: 6,
-    backgroundColor: C.surface,
-    flexShrink: 0,
+    marginTop: 2,
   },
 
-  empty: {
-    flex: 1,
-    justifyContent: "center",
+  // Empty
+  emptyWrap: {
     alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 40,
+    justifyContent: "center",
+    paddingTop: 80,
+    paddingHorizontal: 32,
+    gap: 12,
   },
-  emptyTitle: { color: C.text, fontSize: 18, fontWeight: "600" },
-  emptySubtitle: { color: C.muted, fontSize: 14, textAlign: "center" },
+  emptyTitle: {
+    fontSize: 17,
+    color: C.subtext,
+    fontWeight: "700",
+    fontFamily: "DMSans_700Bold",
+    marginTop: 6,
+  },
+  emptySubtitle: {
+    fontSize: 13,
+    color: C.muted,
+    textAlign: "center",
+    lineHeight: 20,
+  },
+  emptyBtn: {
+    marginTop: 8,
+    paddingHorizontal: 24,
+    paddingVertical: 11,
+    borderRadius: 20,
+    backgroundColor: C.accent,
+  },
+  emptyBtnText: { color: "#fff", fontWeight: "700", fontSize: 14 },
 });
+
+export default Friends;

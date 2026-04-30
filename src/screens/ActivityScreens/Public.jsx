@@ -1,475 +1,594 @@
-// src/screens/ActivityScreens/Public.jsx
-
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
+import FadeInView from "../../components/FadeInView";
+import InitialsAvatar from "../../components/InitialsAvatar";
+import Stars from "../../components/Stars";
 import {
   View,
   Text,
-  FlatList,
   StyleSheet,
-  Image,
+  ScrollView,
   TouchableOpacity,
+  Image,
+  ActivityIndicator,
   SafeAreaView,
   StatusBar,
-  ScrollView,
+  RefreshControl,
 } from "react-native";
-import InitialsAvatar from "../../components/InitialsAvatar";
+import { auth, db } from "../../config/firebase";
+import {
+  collectionGroup,
+  getDocs,
+  query,
+  orderBy,
+  limit,
+  doc,
+  getDoc,
+  collection,
+  where,
+} from "firebase/firestore";
+import { useFocusEffect } from "@react-navigation/native";
+import Svg, { Path, Circle, Rect, Polyline } from "react-native-svg";
 
-// ─── Mock Data ────────────────────────────────────────────────────────────────
+// ─── Constants ────────────────────────────────────────────────────────────────
 
-const TRENDING_SHOWS = [
-  { id: "t1", title: "Andor", year: 2022, posterUrl: "https://picsum.photos/seed/andor/80/120" },
-  { id: "t2", title: "The Penguin", year: 2024, posterUrl: "https://picsum.photos/seed/penguin/80/120" },
-  { id: "t3", title: "Slow Horses", year: 2022, posterUrl: "https://picsum.photos/seed/slowhorses/80/120" },
-  { id: "t4", title: "Mr. & Mrs. Smith", year: 2024, posterUrl: "https://picsum.photos/seed/mrsmith/80/120" },
-  { id: "t5", title: "The Franchise", year: 2024, posterUrl: "https://picsum.photos/seed/franchise/80/120" },
-];
-
-const MOCK_PUBLIC_ACTIVITY = [
-  {
-    id: "p1",
-    user: {
-      id: "u10",
-      username: "cinephile_kay",
-      avatarUrl: "https://i.pravatar.cc/150?img=5",
-      isVerified: true,
-    },
-    type: "reviewed",
-    show: {
-      id: "s10",
-      title: "Andor",
-      year: 2022,
-      posterUrl: "https://picsum.photos/seed/andor/120/180",
-      genre: "Sci-Fi",
-    },
-    rating: 5,
-    review:
-      "The most politically mature thing Star Wars has ever produced. Feels more like a Le Carré adaptation than a space opera — in the best possible way.",
-    timestamp: "3h ago",
-    likeCount: 312,
-    commentCount: 47,
-    isTrending: true,
-  },
-  {
-    id: "p2",
-    user: {
-      id: "u11",
-      username: "tvsommelier",
-      avatarUrl: "https://i.pravatar.cc/150?img=22",
-    },
-    type: "reviewed",
-    show: {
-      id: "s11",
-      title: "Slow Horses",
-      year: 2022,
-      posterUrl: "https://picsum.photos/seed/slowhorses/120/180",
-      genre: "Thriller",
-    },
-    rating: 4.5,
-    review:
-      "Gary Oldman is doing career-best work here and somehow not a single outlet is screaming about it. Season 4 goes hard.",
-    timestamp: "6h ago",
-    likeCount: 198,
-    commentCount: 29,
-    isTrending: true,
-  },
-  {
-    id: "p3",
-    user: {
-      id: "u12",
-      username: "nightmode_nadia",
-      avatarUrl: "https://i.pravatar.cc/150?img=9",
-    },
-    type: "watched",
-    show: {
-      id: "s12",
-      title: "Mr. & Mrs. Smith",
-      year: 2024,
-      posterUrl: "https://picsum.photos/seed/mrsmith/120/180",
-      genre: "Action",
-    },
-    timestamp: "8h ago",
-    likeCount: 54,
-    commentCount: 6,
-  },
-  {
-    id: "p4",
-    user: {
-      id: "u13",
-      username: "rerun_republic",
-      avatarUrl: "https://i.pravatar.cc/150?img=59",
-    },
-    type: "added_to_list",
-    show: {
-      id: "s13",
-      title: "The Penguin",
-      year: 2024,
-      posterUrl: "https://picsum.photos/seed/penguin/120/180",
-      genre: "Crime",
-    },
-    listName: "Best Comic Adaptations Ever",
-    timestamp: "10h ago",
-    likeCount: 87,
-    commentCount: 12,
-  },
-  {
-    id: "p5",
-    user: {
-      id: "u14",
-      username: "binge.theory",
-      avatarUrl: "https://i.pravatar.cc/150?img=44",
-      isVerified: true,
-    },
-    type: "reviewed",
-    show: {
-      id: "s14",
-      title: "The Franchise",
-      year: 2024,
-      posterUrl: "https://picsum.photos/seed/franchise/120/180",
-      genre: "Comedy",
-    },
-    rating: 3.5,
-    review:
-      "Razor sharp satire of the superhero industrial complex. Not everything lands but when it does, it's genuinely scathing.",
-    timestamp: "Yesterday",
-    likeCount: 143,
-    commentCount: 21,
-  },
-];
-
-const FILTER_OPTIONS = ["All", "Reviews", "Watched", "Lists"];
-
-// ─── Colors ───────────────────────────────────────────────────────────────────
+const TVMAZE = "https://api.tvmaze.com";
 
 const C = {
   bg: "#081C15",
-  surface: "#0d2b1d",
+  surface: "#0D2319",
   card: "#1B4332",
-  border: "rgba(45,106,79,0.2)",
-  borderStrong: "#2D6A4F",
   accent: "#52B788",
-  accentPress: "rgba(82,183,136,0.05)",
+  accentSoft: "#52B78822",
+  gold: "#F59E0B",
   text: "#D8F3DC",
-  textSec: "#95D5B2",
-  muted: "#40916C",
-  star: "#F4A827",
-  rose: "#C4788A",
-  trending: "rgba(244,168,39,0.15)",
-  trendingText: "#F4A827",
+  subtext: "#74C69D",
+  muted: "#2D6A4F",
+  border: "#1B4332",
+  border2: "#2D6A4F",
+  heart: "#EF4444",
 };
+
+// ─── Tabs ─────────────────────────────────────────────────────────────────────
+
+const TABS = ["Reviews", "Lists"];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const getActivityLabel = (item) => {
-  switch (item.type) {
-    case "reviewed":
-      return "reviewed";
-    case "watched":
-      return "watched";
-    case "added_to_list":
-      return `added to list "${item.listName}"`;
-    default:
-      return "";
-  }
+const timeAgo = (timestamp) => {
+  if (!timestamp) return "";
+  const date = timestamp?.toDate?.() ?? new Date(timestamp);
+  const diff = (Date.now() - date.getTime()) / 1000;
+  if (diff < 60) return "just now";
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 };
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
+// ─── Popular Review Card ──────────────────────────────────────────────────────
 
-const StarRating = ({ rating }) => {
-  const stars = [];
-  for (let i = 1; i <= 5; i++) {
-    if (rating >= i) stars.push("★");
-    else if (rating >= i - 0.5) stars.push("½");
-    else stars.push("☆");
-  }
-  return <Text style={styles.stars}>{stars.join("")}</Text>;
-};
-
-const TrendingStrip = ({ navigation }) => (
-  <View style={styles.trendingSection}>
-    <Text style={styles.trendingSectionTitle}>Trending This Week</Text>
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={styles.trendingScroll}
-    >
-      {TRENDING_SHOWS.map((show) => (
-        <TouchableOpacity key={show.id} style={styles.trendingCard} onPress={() => navigation.navigate("ShowCard", { showId: show.id })}>
-          <Image source={{ uri: show.posterUrl }} style={styles.trendingPoster} />
-          <Text style={styles.trendingShowTitle} numberOfLines={2}>
-            {show.title}
-          </Text>
-        </TouchableOpacity>
-      ))}
-    </ScrollView>
-  </View>
-);
-
-const PublicActivityCard = ({ item, navigation }) => (
-  <View style={styles.card}>
-    {item.isTrending && (
-      <View style={styles.trendingBadge}>
-        <Text style={styles.trendingBadgeText}>🔥 Trending</Text>
+const PopularReviewCard = ({ item, onShowPress }) => (
+  <TouchableOpacity style={styles.reviewCard} onPress={onShowPress} activeOpacity={0.82}>
+    {/* Poster strip */}
+    {item.posterUri ? (
+      <Image source={{ uri: item.posterUri }} style={styles.reviewPoster} resizeMode="cover" />
+    ) : (
+      <View style={[styles.reviewPoster, styles.posterPlaceholder]}>
+        <Svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+          <Rect x="2" y="7" width="20" height="15" rx="2" />
+          <Polyline points="17 2 12 7 7 2" />
+        </Svg>
       </View>
     )}
 
-    <View style={styles.cardHeader}>
-      <InitialsAvatar name={item.user.username} size={36} />
-      <View style={styles.headerText}>
-        <Text style={styles.username}>
-          @{item.user.username}
-          {item.user.isVerified ? <Text style={styles.verified}> ✓</Text> : null}
-        </Text>
-        <Text style={styles.actionLabel}>
-          {getActivityLabel(item)} · {item.timestamp}
-        </Text>
-      </View>
-      <TouchableOpacity style={styles.followBtn}>
-        <Text style={styles.followBtnText}>Follow</Text>
-      </TouchableOpacity>
-    </View>
-
-    <TouchableOpacity activeOpacity={0.8} onPress={() => navigation.navigate("ShowCard", { showId: item.show.id })} style={styles.showRow}>
-      <Image source={{ uri: item.show.posterUrl }} style={styles.poster} />
-      <View style={styles.showInfo}>
-        <Text style={styles.showTitle}>{item.show.title}</Text>
-        <Text style={styles.showMeta}>
-          {item.show.year}
-          {item.show.genre ? ` · ${item.show.genre}` : ""}
-        </Text>
-        {item.rating !== undefined && <StarRating rating={item.rating} />}
-        {item.review ? (
-          <View style={styles.reviewBlock}>
-            <Text style={styles.reviewText} numberOfLines={4}>
-              {item.review}
-            </Text>
+    <View style={styles.reviewBody}>
+      {/* Top row: avatar + name + time */}
+      <View style={styles.reviewUserRow}>
+        <InitialsAvatar name={item.displayName} size={26} color={item.avatarColor} />
+        <View style={{ flex: 1 }}>
+          <Text style={styles.reviewUsername}>{item.displayName ?? "Anonymous"}</Text>
+          <View style={styles.reviewMeta}>
+            {item.rating > 0 && <Stars rating={item.rating} size={10} />}
+            <Text style={styles.reviewTime}>{timeAgo(item.createdAt)}</Text>
           </View>
-        ) : null}
+        </View>
+        {/* Heart count */}
+        <View style={styles.likesChip}>
+          <Text style={styles.likesHeart}>♥</Text>
+          <Text style={styles.likesCount}>{item.likes ?? 0}</Text>
+        </View>
       </View>
-    </TouchableOpacity>
 
-    <View style={styles.cardFooter}>
-      <TouchableOpacity style={styles.footerBtn}>
-        <Text style={[styles.footerIcon, { color: C.rose }]}>♥</Text>
-        <Text style={styles.footerCount}>{item.likeCount}</Text>
-      </TouchableOpacity>
-      <TouchableOpacity style={styles.footerBtn}>
-        <Text style={styles.footerIcon}>💬</Text>
-        <Text style={styles.footerCount}>{item.commentCount}</Text>
-      </TouchableOpacity>
-      <TouchableOpacity style={[styles.footerBtn, { marginLeft: "auto" }]}>
-        <Text style={styles.footerShare}>Share ↗</Text>
-      </TouchableOpacity>
+      {/* Show name */}
+      <Text style={styles.reviewShowName} numberOfLines={1}>{item.showName}</Text>
+
+      {/* Review body */}
+      <Text style={styles.reviewText} numberOfLines={4}>{item.text}</Text>
     </View>
-  </View>
+  </TouchableOpacity>
 );
 
-// ─── Screen ───────────────────────────────────────────────────────────────────
+// ─── Popular List Card ────────────────────────────────────────────────────────
 
-const Public = ({ navigation }) => {
-  const [activeFilter, setActiveFilter] = useState("All");
-
-  const filtered = MOCK_PUBLIC_ACTIVITY.filter((item) => {
-    if (activeFilter === "All") return true;
-    if (activeFilter === "Reviews") return item.type === "reviewed";
-    if (activeFilter === "Watched") return item.type === "watched";
-    if (activeFilter === "Lists") return item.type === "added_to_list";
-    return true;
-  });
+const PosterMosaic = ({ uris }) => {
+  const tiles = [...uris, null, null, null, null].slice(0, 4);
+  const size = 72;
+  const tileSize = (size - 2) / 2;
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <StatusBar barStyle="light-content" backgroundColor={C.bg} />
+    <View style={{ width: size, height: size, borderRadius: 8, overflow: "hidden", flexDirection: "row", flexWrap: "wrap", gap: 2, backgroundColor: C.card }}>
+      {tiles.map((uri, i) =>
+        uri ? (
+          <Image key={i} source={{ uri }} style={{ width: tileSize, height: tileSize }} resizeMode="cover" />
+        ) : (
+          <View key={i} style={{ width: tileSize, height: tileSize, backgroundColor: C.muted, opacity: 0.3 }} />
+        )
+      )}
+    </View>
+  );
+};
 
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Popular</Text>
-        <Text style={styles.headerSubtitle}>What everyone is watching</Text>
+const PopularListCard = ({ item, onPress }) => (
+  <TouchableOpacity style={styles.listCard} onPress={onPress} activeOpacity={0.82}>
+    <PosterMosaic uris={item.posterUris ?? []} />
+
+    <View style={styles.listBody}>
+      <View style={styles.listTitleRow}>
+        <Text style={styles.listTitle} numberOfLines={1}>{item.title}</Text>
+        <View style={styles.likesChip}>
+          <Text style={styles.likesHeart}>♥</Text>
+          <Text style={styles.likesCount}>{item.likes ?? 0}</Text>
+        </View>
       </View>
 
-      <FlatList
-        data={filtered}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => <PublicActivityCard item={item} navigation={navigation} />}
-        contentContainerStyle={styles.list}
-        showsVerticalScrollIndicator={false}
-        ListHeaderComponent={
-          <>
-            <TrendingStrip navigation={navigation} />
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.filterRow}
+      <View style={styles.listUserRow}>
+        <InitialsAvatar name={item.ownerName} size={18} color={item.avatarColor} />
+        <Text style={styles.listOwner}>@{item.ownerUsername}</Text>
+      </View>
+
+      {item.description ? (
+        <Text style={styles.listDesc} numberOfLines={2}>{item.description}</Text>
+      ) : null}
+
+      <Text style={styles.listMeta}>
+        {item.showCount} show{item.showCount !== 1 ? "s" : ""}
+        {item.updatedAt ? `  ·  Updated ${timeAgo(item.updatedAt)}` : ""}
+      </Text>
+    </View>
+  </TouchableOpacity>
+);
+
+// ─── Main Screen ──────────────────────────────────────────────────────────────
+
+const Public = ({ navigation }) => {
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [activeTab, setActiveTab] = useState("Reviews");
+  const [popularReviews, setPopularReviews] = useState([]);
+  const [popularLists, setPopularLists] = useState([]);
+  const [posterMap, setPosterMap] = useState({});
+
+  const fetchAll = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
+
+    try {
+      // ── Popular reviews (collectionGroup across all shows) ──
+      // Requires Firestore index on collectionGroup "reviews" by likes desc
+      let reviews = [];
+      try {
+        const reviewSnap = await getDocs(
+          query(collectionGroup(db, "reviews"), orderBy("likes", "desc"), limit(20))
+        );
+        reviews = reviewSnap.docs.map((d) => ({
+          id: d.id,
+          showId: d.ref.parent.parent?.id ?? null,
+          ...d.data(),
+        }));
+      } catch {
+        // Fallback: index not yet created — fetch from a flat reviews collection if you have one
+        console.warn("[Public] reviews collectionGroup query failed — add Firestore index");
+      }
+
+      // ── Popular public lists ──
+      let lists = [];
+      try {
+        const listSnap = await getDocs(
+          query(
+            collection(db, "lists"),
+            where("isPublic", "==", true),
+            orderBy("likes", "desc"),
+            limit(20)
+          )
+        );
+        lists = listSnap.docs.map((d) => ({ id: d.id, ...d.data() }))
+          .filter((l) => l.isPublic && !l.isWatchlist);
+      } catch (err) {
+        console.warn("[Public] lists query failed:", err.message);
+      }
+
+      // ── Collect show IDs and fetch posters ──
+      const showIds = [
+        ...new Set([
+          ...reviews.map((r) => r.showId).filter(Boolean),
+          ...lists.flatMap((l) => (l.showIds ?? []).slice(0, 4)),
+        ]),
+      ];
+
+      const posterResults = await Promise.allSettled(
+        showIds.map((id) =>
+          fetch(`${TVMAZE}/shows/${id}`)
+            .then((r) => r.json())
+            .then((data) => ({ id: String(id), uri: data?.image?.medium ?? null }))
+        )
+      );
+      const newPosterMap = {};
+      posterResults.forEach((r) => {
+        if (r.status === "fulfilled" && r.value.uri)
+          newPosterMap[r.value.id] = r.value.uri;
+      });
+      setPosterMap(newPosterMap);
+
+      // ── Fetch user profiles for reviews ──
+      const reviewUids = [...new Set(reviews.map((r) => r.uid).filter(Boolean))];
+      const userProfiles = {};
+      await Promise.allSettled(
+        reviewUids.map((uid) =>
+          getDoc(doc(db, "users", uid)).then((snap) => {
+            if (snap.exists()) userProfiles[uid] = snap.data();
+          })
+        )
+      );
+
+      // ── Fetch user profiles for lists ──
+      const listOwnerUids = [...new Set(lists.map((l) => l.userId).filter(Boolean))];
+      await Promise.allSettled(
+        listOwnerUids.map((uid) =>
+          getDoc(doc(db, "users", uid)).then((snap) => {
+            if (snap.exists()) userProfiles[uid] = snap.data();
+          })
+        )
+      );
+
+      // ── Shape data ──
+      const shapedReviews = reviews.map((r) => {
+        const p = userProfiles[r.uid] ?? {};
+        return {
+          ...r,
+          displayName: p.displayName ?? r.displayName ?? "Anonymous",
+          avatarColor: p.avatarColor ?? C.accent,
+          posterUri: newPosterMap[String(r.showId)] ?? null,
+          showName: r.showName ?? "Unknown Show",
+        };
+      });
+
+      const shapedLists = lists.map((l) => {
+        const p = userProfiles[l.userId] ?? {};
+        return {
+          ...l,
+          ownerName: p.displayName ?? "User",
+          ownerUsername: p.username ?? "unknown",
+          avatarColor: p.avatarColor ?? C.accent,
+          showCount: (l.showIds ?? []).length,
+          posterUris: (l.showIds ?? [])
+            .slice(0, 4)
+            .map((id) => newPosterMap[String(id)])
+            .filter(Boolean),
+        };
+      });
+
+      setPopularReviews(shapedReviews);
+      setPopularLists(shapedLists);
+    } catch (err) {
+      console.error("[Public] fetch error:", err);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchAll();
+    }, [fetchAll])
+  );
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    fetchAll(true);
+  };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.loadingScreen}>
+        <ActivityIndicator size="large" color={C.accent} />
+        <Text style={styles.loadingText}>Loading popular…</Text>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={styles.screen}>
+      <StatusBar barStyle="light-content" backgroundColor={C.bg} />
+      <FadeInView>
+        {/* ── Header ── */}
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.headerBackChip}
+            onPress={() => navigation.navigate("Friends")}
+          >
+            <Text style={styles.headerBackText}>‹ Friends</Text>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Popular</Text>
+        </View>
+
+        {/* ── Tabs ── */}
+        <View style={styles.tabBar}>
+          {TABS.map((tab) => (
+            <TouchableOpacity
+              key={tab}
+              style={[styles.tab, activeTab === tab && styles.tabActive]}
+              onPress={() => setActiveTab(tab)}
+              activeOpacity={0.7}
             >
-              {FILTER_OPTIONS.map((f) => (
-                <TouchableOpacity
-                  key={f}
-                  style={[
-                    styles.filterPill,
-                    activeFilter === f && styles.filterPillActive,
-                  ]}
-                  onPress={() => setActiveFilter(f)}
-                >
-                  <Text
-                    style={[
-                      styles.filterPillText,
-                      activeFilter === f && styles.filterPillTextActive,
-                    ]}
-                  >
-                    {f}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </>
-        }
-        ListEmptyComponent={
-          <View style={styles.empty}>
-            <Text style={styles.emptyTitle}>Nothing here yet</Text>
-            <Text style={styles.emptySubtitle}>Check back soon.</Text>
-          </View>
-        }
-      />
+              <Text style={[styles.tabText, activeTab === tab && styles.tabTextActive]}>
+                {tab}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scroll}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor={C.accent}
+            />
+          }
+        >
+          {/* ── Reviews tab ── */}
+          {activeTab === "Reviews" && (
+            <>
+              {popularReviews.length === 0 ? (
+                <View style={styles.emptyWrap}>
+                  <Svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth="1.3" strokeLinecap="round">
+                    <Path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                  </Svg>
+                  <Text style={styles.emptyTitle}>No popular reviews yet</Text>
+                  <Text style={styles.emptySubtitle}>Reviews gain visibility as they're liked by others</Text>
+                </View>
+              ) : (
+                popularReviews.map((item) => (
+                  <PopularReviewCard
+                    key={item.id}
+                    item={item}
+                    onShowPress={() =>
+                      item.showId
+                        ? navigation.navigate("ShowCard", { showId: Number(item.showId) })
+                        : null
+                    }
+                  />
+                ))
+              )}
+            </>
+          )}
+
+          {/* ── Lists tab ── */}
+          {activeTab === "Lists" && (
+            <>
+              {popularLists.length === 0 ? (
+                <View style={styles.emptyWrap}>
+                  <Svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke={C.muted} strokeWidth="1.3" strokeLinecap="round">
+                    <Rect x="3" y="3" width="7" height="7" rx="1" />
+                    <Rect x="14" y="3" width="7" height="7" rx="1" />
+                    <Rect x="3" y="14" width="7" height="7" rx="1" />
+                    <Rect x="14" y="14" width="7" height="7" rx="1" />
+                  </Svg>
+                  <Text style={styles.emptyTitle}>No public lists yet</Text>
+                  <Text style={styles.emptySubtitle}>Public lists appear here as users share them</Text>
+                </View>
+              ) : (
+                popularLists.map((item) => (
+                  <PopularListCard
+                    key={item.id}
+                    item={item}
+                    onPress={() =>
+                      navigation.navigate("ListDetail", {
+                        listId: item.id,
+                        listTitle: item.title,
+                      })
+                    }
+                  />
+                ))
+              )}
+            </>
+          )}
+        </ScrollView>
+      </FadeInView>
     </SafeAreaView>
   );
 };
 
-export default Public;
-
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: C.bg },
-
-  header: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: C.border,
+  screen: { flex: 1, backgroundColor: C.bg },
+  scroll: { paddingHorizontal: 16, paddingBottom: 48, paddingTop: 4 },
+  loadingScreen: {
+    flex: 1, backgroundColor: C.bg,
+    justifyContent: "center", alignItems: "center", gap: 14,
   },
+  loadingText: { color: C.subtext, fontSize: 14, fontWeight: "500" },
+
+  // Header
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingTop: 18,
+    paddingBottom: 12,
+  },
+  headerBackChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: C.surface,
+    borderWidth: 1,
+    borderColor: C.border2,
+  },
+  headerBackText: { fontSize: 12, color: C.accent, fontWeight: "600" },
   headerTitle: {
     fontSize: 28,
     fontFamily: "DMSerifDisplay_400Regular",
     color: C.text,
-    letterSpacing: -0.5,
-  },
-  headerSubtitle: { fontSize: 13, fontFamily: "DMSans_400Regular", color: C.muted, marginTop: 2 },
-
-  trendingSection: { paddingTop: 16, paddingBottom: 8 },
-  trendingSectionTitle: {
-    color: C.muted,
-    fontSize: 11,
-    fontWeight: "700",
-    letterSpacing: 1.2,
-    textTransform: "uppercase",
-    paddingHorizontal: 20,
-    marginBottom: 10,
-  },
-  trendingScroll: { paddingHorizontal: 20, gap: 10 },
-  trendingCard: { width: 72, alignItems: "center", gap: 6 },
-  trendingPoster: {
-    width: 72,
-    height: 108,
-    borderRadius: 8,
-    backgroundColor: C.card,
-  },
-  trendingShowTitle: {
-    color: C.muted,
-    fontSize: 10,
-    textAlign: "center",
-    lineHeight: 13,
+    letterSpacing: -0.4,
   },
 
-  filterRow: { paddingHorizontal: 20, paddingVertical: 12, gap: 8 },
-  filterPill: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: C.borderStrong,
-    backgroundColor: "rgba(45,106,79,0.3)",
-  },
-  filterPillActive: {
-    backgroundColor: C.accent,
-    borderColor: C.accent,
-  },
-  filterPillText: { color: C.textSec, fontSize: 12, fontWeight: "500" },
-  filterPillTextActive: { color: "#081C15", fontWeight: "600" },
-
-  list: { paddingHorizontal: 16, paddingBottom: 24, gap: 12 },
-
-  card: {
+  // Tabs
+  tabBar: {
+    flexDirection: "row",
+    marginHorizontal: 16,
+    marginBottom: 14,
     backgroundColor: C.surface,
     borderRadius: 12,
-    padding: 14,
+    padding: 4,
     borderWidth: 1,
     borderColor: C.border,
   },
-  trendingBadge: {
-    alignSelf: "flex-start",
-    backgroundColor: C.trending,
-    borderRadius: 4,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: "rgba(244,168,39,0.25)",
-  },
-  trendingBadgeText: { color: C.trendingText, fontSize: 11, fontWeight: "600" },
-
-  cardHeader: {
-    flexDirection: "row",
+  tab: {
+    flex: 1,
+    paddingVertical: 9,
+    borderRadius: 9,
     alignItems: "center",
-    marginBottom: 12,
-    gap: 10,
   },
-  headerText: { flex: 1 },
-  username: { color: C.text, fontWeight: "600", fontSize: 13 },
-  verified: { color: "#52B788", fontSize: 12 },
-  actionLabel: { color: C.muted, fontSize: 12, marginTop: 1 },
-  followBtn: {
-    paddingHorizontal: 14,
-    paddingVertical: 5,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: C.accent,
-  },
-  followBtnText: { color: C.accent, fontSize: 12, fontWeight: "600" },
+  tabActive: { backgroundColor: C.card },
+  tabText: { fontSize: 13, color: C.muted, fontWeight: "600" },
+  tabTextActive: { color: C.accent, fontWeight: "700" },
 
-  showRow: { flexDirection: "row", gap: 12, marginBottom: 12 },
-  poster: {
-    width: 56,
-    height: 84,
-    borderRadius: 6,
+  // Popular review card
+  reviewCard: {
+    flexDirection: "row",
+    backgroundColor: C.surface,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: C.border,
+    padding: 12,
+    marginBottom: 10,
+    gap: 12,
+  },
+  reviewPoster: {
+    width: 52,
+    height: 76,
+    borderRadius: 7,
     backgroundColor: C.card,
   },
-  showInfo: { flex: 1, gap: 4 },
-  showTitle: { color: C.text, fontWeight: "700", fontSize: 14 },
-  showMeta: { color: C.muted, fontSize: 12 },
-  stars: { color: C.star, fontSize: 11, letterSpacing: 1 },
-  reviewBlock: {
-    marginTop: 4,
-    padding: 10,
-    backgroundColor: "#081C15",
-    borderRadius: 8,
-    borderLeftWidth: 2,
-    borderLeftColor: C.accent,
+  posterPlaceholder: {
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: C.border2,
   },
-  reviewText: { color: C.textSec, fontSize: 12, lineHeight: 18, fontStyle: "italic" },
-
-  cardFooter: {
+  reviewBody: { flex: 1, gap: 4 },
+  reviewUserRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 16,
-    borderTopWidth: 1,
-    borderTopColor: C.border,
-    paddingTop: 10,
+    gap: 8,
   },
-  footerBtn: { flexDirection: "row", alignItems: "center", gap: 4 },
-  footerIcon: { fontSize: 13, color: C.muted },
-  footerCount: { color: C.muted, fontSize: 12 },
-  footerShare: { color: C.muted, fontSize: 12 },
+  reviewUsername: {
+    fontSize: 13,
+    color: C.text,
+    fontWeight: "700",
+  },
+  reviewMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 1,
+  },
+  reviewTime: { fontSize: 10, color: C.muted },
+  reviewShowName: {
+    fontSize: 11,
+    color: C.accent,
+    fontWeight: "600",
+  },
+  reviewText: {
+    fontSize: 13,
+    color: C.subtext,
+    lineHeight: 19,
+    fontStyle: "italic",
+  },
 
-  empty: { paddingTop: 60, alignItems: "center", gap: 8 },
-  emptyTitle: { color: C.text, fontSize: 18, fontWeight: "600" },
-  emptySubtitle: { color: C.muted, fontSize: 14 },
+  // Likes chip
+  likesChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    backgroundColor: "#EF444418",
+    borderRadius: 8,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderWidth: 1,
+    borderColor: "#EF444430",
+  },
+  likesHeart: { fontSize: 10, color: "#EF4444" },
+  likesCount: { fontSize: 11, color: "#EF4444", fontWeight: "700" },
+
+  // Popular list card
+  listCard: {
+    flexDirection: "row",
+    backgroundColor: C.surface,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: C.border,
+    padding: 12,
+    marginBottom: 10,
+    gap: 12,
+    alignItems: "center",
+  },
+  listBody: { flex: 1, gap: 4 },
+  listTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  listTitle: {
+    fontSize: 14,
+    color: C.text,
+    fontWeight: "700",
+    flex: 1,
+  },
+  listUserRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+  },
+  listOwner: { fontSize: 11, color: C.accent, fontWeight: "600" },
+  listDesc: { fontSize: 12, color: C.subtext, lineHeight: 17 },
+  listMeta: { fontSize: 11, color: C.muted, fontWeight: "500" },
+
+  // Empty
+  emptyWrap: {
+    alignItems: "center",
+    paddingTop: 80,
+    paddingHorizontal: 32,
+    gap: 12,
+  },
+  emptyTitle: {
+    fontSize: 16,
+    color: C.subtext,
+    fontWeight: "700",
+    fontFamily: "DMSans_700Bold",
+    marginTop: 6,
+  },
+  emptySubtitle: {
+    fontSize: 13,
+    color: C.muted,
+    textAlign: "center",
+    lineHeight: 20,
+  },
 });
+
+export default Public;
