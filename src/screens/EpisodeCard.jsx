@@ -674,19 +674,6 @@ const EpisodeCard = ({ route, navigation }) => {
         {/* ── Action buttons ── */}
         <View style={styles.actionRow}>
           <TouchableOpacity
-            style={[
-              styles.actionBtn,
-              hearted && { backgroundColor: C.heartSoft, borderColor: C.heart + "60" },
-            ]}
-            onPress={() => setHearted((p) => !p)}
-          >
-            <Text style={[styles.actionIcon, { color: hearted ? C.heart : C.subtext }]}>
-              {hearted ? "♥" : "♡"}
-            </Text>
-            <Text style={[styles.actionLabel, hearted && { color: C.heart }]}>Save</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
             style={[styles.actionBtn, styles.actionBtnPrimary]}
             onPress={() => setShowRateModal(true)}
           >
@@ -694,17 +681,6 @@ const EpisodeCard = ({ route, navigation }) => {
             <Text style={[styles.actionLabel, { color: "#fff" }]}>
               {myRating > 0 ? `${myRating}★` : "Rate Episode"}
             </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.actionBtn,
-              liked && { backgroundColor: C.accentSoft, borderColor: C.accent + "60" },
-            ]}
-            onPress={() => setLiked((p) => !p)}
-          >
-            <Text style={[styles.actionIcon, { color: liked ? C.accent : C.subtext }]}>👍</Text>
-            <Text style={[styles.actionLabel, liked && { color: C.accent }]}>Like</Text>
           </TouchableOpacity>
         </View>
 

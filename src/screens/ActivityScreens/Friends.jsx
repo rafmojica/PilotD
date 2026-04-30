@@ -250,6 +250,13 @@ const Friends = ({ navigation }) => {
           )
         )
       );
+  const handlePressUser = (friend) => {
+    if (friend.id === auth.currentUser?.uid) {
+      navigation.navigate("ProfileTab");
+    } else {
+      navigation.navigate("UserProfile", { userId: friend.id, displayName: friend.displayName });
+    }
+  };
 
       const allDiary = [];
       diaryResults.forEach((r) => {

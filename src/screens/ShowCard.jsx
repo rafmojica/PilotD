@@ -16,7 +16,8 @@ import {
   Platform,
 } from "react-native";
 import Stars from "../components/Stars";
-import {doc, getDoc, runTransaction, collection, addDoc, setDoc, getDocs, query, where, limit, orderBy, serverTimestamp, deleteDoc, updateDoc, increment } from "firebase/firestore";
+import InitialsAvatar from "../components/InitialsAvatar";
+import {doc, getDoc, runTransaction, collection, addDoc, setDoc, getDocs, query, where, limit, serverTimestamp, deleteDoc, updateDoc, increment } from "firebase/firestore";
 import {db, auth } from "../config/firebase";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -106,23 +107,6 @@ const writeDiaryEntry = async (showId, showName, rating, reviewText, likedValue 
   }
 };
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
-
-const AvatarCircle = ({ initials, color, size = 32 }) => (
-  <View
-    style={{
-      width: size,
-      height: size,
-      borderRadius: size / 2,
-      backgroundColor: color,
-      justifyContent: "center",
-      alignItems: "center",
-    }}
-  >
-    <Text style={{ color: "#fff", fontSize: size * 0.34, fontWeight: "800" }}>{initials}</Text>
-  </View>
-);
-
 // ─── Section wrapper ──────────────────────────────────────────────────────────
 
 const Section = ({ title, children, action, onAction }) => (
@@ -143,172 +127,52 @@ const Section = ({ title, children, action, onAction }) => (
 
 // ─── Review card ──────────────────────────────────────────────────────────────
 
-const ReviewCard = ({ review, compact = false, isLiked = false, onToggleLike, onComment }) => (
-  <View style={styles.reviewCard}>
-    <View style={styles.reviewHeader}>
-      <AvatarCircle
-        initials={(review.displayName ?? "?").slice(0, 2).toUpperCase()}
-        color="#52B788"
-        size={30}
-      />
-      <View style={{ flex: 1 }}>
-        <Text style={styles.reviewUser}>{review.displayName ?? "Anonymous"}</Text>
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-          <Stars rating={review.rating ?? 0} size={11} />
-          <Text style={styles.reviewDate}>
-            {review.createdAt?.toDate?.().toLocaleDateString("en-US", {
-              month: "short", year: "numeric"
-            }) ?? ""}
-          </Text>
-        </View>
-      </View>
-    </View>
-    <Text style={styles.reviewText} numberOfLines={compact ? 3 : undefined}>
-      {review.text}
-    </Text>
-    <View style={styles.reviewActions}>
-      <TouchableOpacity style={styles.reviewActionBtn} onPress={onToggleLike}>
-        <Text style={[styles.reviewActionText, isLiked && { color: C.heart }]}>
-          {isLiked ? "♥" : "♡"}  {review.likes ?? 0}
-        </Text>
-      </TouchableOpacity>
-      <TouchableOpacity style={styles.reviewActionBtn} onPress={onComment}>
-        <Text style={styles.reviewActionText}>💬  Comment</Text>
-      </TouchableOpacity>
-    </View>
-  </View>
-);
-
-// ─── Comments modal ───────────────────────────────────────────────────────────
-
-const CommentsModal = ({ visible, onClose, review, showId }) => {
-  const [comments, setComments] = useState([]);
-  const [commentText, setCommentText] = useState("");
-  const [posting, setPosting] = useState(false);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    if (!visible || !review) return;
-    setLoading(true);
-    getDocs(
-      query(
-        collection(db, "shows", String(showId), "reviews", review.id, "comments"),
-        orderBy("createdAt", "asc")
-      )
-    )
-      .then((snap) => setComments(snap.docs.map((d) => ({ id: d.id, ...d.data() }))))
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, [visible, review, showId]);
-
-  const submit = async () => {
-    const user = auth.currentUser;
-    if (!user || !commentText.trim() || posting) return;
-    setPosting(true);
-    try {
-      const ref = await addDoc(
-        collection(db, "shows", String(showId), "reviews", review.id, "comments"),
-        {
-          uid: user.uid,
-          displayName: user.displayName ?? "Anonymous",
-          text: commentText.trim(),
-          createdAt: serverTimestamp(),
-        }
-      );
-      setComments((prev) => [
-        ...prev,
-        { id: ref.id, uid: user.uid, displayName: user.displayName ?? "Anonymous", text: commentText.trim(), createdAt: null },
-      ]);
-      setCommentText("");
-    } catch (err) {
-      console.error("Comment post error:", err);
-    } finally {
-      setPosting(false);
+const ReviewCard = ({ review, compact = false, isLiked = false, onToggleLike, onComment, navigation, photoURL, commentCount = 0 }) => {
+  const handlePressUser = () => {
+    if (!navigation) return;
+    if (review.uid === auth.currentUser?.uid) {
+      navigation.navigate("ProfileTab");
+    } else {
+      navigation.navigate("UserProfile", { userId: review.uid, displayName: review.displayName });
     }
   };
 
-  if (!review) return null;
-
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-      >
-        <TouchableOpacity
-          style={styles.commentsBackdrop}
-          activeOpacity={1}
-          onPress={onClose}
-        >
-          <TouchableOpacity activeOpacity={1} style={styles.commentsSheet}>
-            {/* Header */}
-            <View style={styles.commentsHeader}>
-              <Text style={styles.commentsTitle}>Comments</Text>
-              <TouchableOpacity onPress={onClose}>
-                <Text style={styles.commentsClose}>✕</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Review preview */}
-            <View style={styles.commentsReviewPreview}>
-              <AvatarCircle
-                initials={(review.displayName ?? "?").slice(0, 2).toUpperCase()}
-                color="#52B788"
-                size={28}
-              />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.reviewUser}>{review.displayName}</Text>
-                <Text style={styles.reviewText} numberOfLines={2}>{review.text}</Text>
-              </View>
-            </View>
-
-            <View style={styles.commentsDivider} />
-
-            {/* Comments list */}
-            {loading ? (
-              <ActivityIndicator color={C.accent} style={{ marginVertical: 24 }} />
-            ) : comments.length === 0 ? (
-              <Text style={styles.commentsEmpty}>No comments yet — start the conversation!</Text>
-            ) : (
-              <ScrollView style={styles.commentsList} showsVerticalScrollIndicator={false}>
-                {comments.map((c) => (
-                  <View key={c.id} style={styles.commentItem}>
-                    <AvatarCircle
-                      initials={(c.displayName ?? "?").slice(0, 2).toUpperCase()}
-                      color={C.muted}
-                      size={26}
-                    />
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.commentUser}>{c.displayName}</Text>
-                      <Text style={styles.commentText}>{c.text}</Text>
-                    </View>
-                  </View>
-                ))}
-              </ScrollView>
-            )}
-
-            {/* Comment input */}
-            <View style={styles.commentInputRow}>
-              <TextInput
-                style={styles.commentInput}
-                placeholder="Add a comment…"
-                placeholderTextColor={C.muted}
-                value={commentText}
-                onChangeText={setCommentText}
-                multiline
-              />
-              <TouchableOpacity
-                style={[styles.commentSubmitBtn, (!commentText.trim() || posting) && { opacity: 0.4 }]}
-                onPress={submit}
-                disabled={!commentText.trim() || posting}
-              >
-                <Text style={styles.commentSubmitText}>{posting ? "…" : "Post"}</Text>
-              </TouchableOpacity>
-            </View>
-          </TouchableOpacity>
+    <TouchableOpacity style={styles.reviewCard} onPress={onComment} activeOpacity={0.75}>
+      <View style={styles.reviewHeader}>
+        <TouchableOpacity onPress={handlePressUser} activeOpacity={0.7}>
+          <InitialsAvatar name={review.displayName ?? "?"} photoURL={photoURL} size={34} />
         </TouchableOpacity>
-      </KeyboardAvoidingView>
-    </Modal>
+        <View style={{ flex: 1 }}>
+          <TouchableOpacity onPress={handlePressUser} activeOpacity={0.7}>
+            <Text style={styles.reviewUser}>{review.displayName ?? "Anonymous"}</Text>
+          </TouchableOpacity>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <Stars rating={review.rating ?? 0} size={11} />
+            <Text style={styles.reviewDate}>
+              {review.createdAt?.toDate?.().toLocaleDateString("en-US", {
+                month: "short", year: "numeric"
+              }) ?? ""}
+            </Text>
+          </View>
+        </View>
+      </View>
+      <Text style={styles.reviewText} numberOfLines={compact ? 3 : undefined}>
+        {review.text}
+      </Text>
+      <View style={styles.reviewActions}>
+        <TouchableOpacity style={styles.reviewActionBtn} onPress={(e) => { e.stopPropagation?.(); onToggleLike(); }}>
+          <Text style={[styles.reviewActionText, isLiked && { color: C.heart }]}>
+            {isLiked ? "♥" : "♡"}  {review.likes ?? 0}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.reviewActionBtn} onPress={onComment}>
+          <Text style={styles.reviewActionText}>
+            💬  {commentCount > 0 ? `${commentCount} Comment${commentCount !== 1 ? "s" : ""}` : "Comment"}
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </TouchableOpacity>
   );
 };
 
@@ -416,7 +280,7 @@ const RateModal = ({ visible, onClose, currentRating, onRate, showTitle }) => {
   );
 };
 
-const AddToListModal = ({ visible, onClose, showId }) => {
+const AddToListModal = ({ visible, onClose, showId, onListChange }) => {
   const [lists, setLists] = useState([]);
   const [saving, setSaving] = useState(null);
 
@@ -431,19 +295,20 @@ const AddToListModal = ({ visible, onClose, showId }) => {
   const toggle = async (list) => {
     setSaving(list.id);
     const already = (list.showIds ?? []).includes(showId);
+    const newShowIds = already
+      ? list.showIds.filter((id) => id !== showId)
+      : [...(list.showIds ?? []), showId];
     await updateDoc(doc(db, "lists", list.id), {
-      showIds: already
-        ? list.showIds.filter((id) => id !== showId)
-        : [...(list.showIds ?? []), showId],
+      showIds: newShowIds,
       updatedAt: serverTimestamp(),
     });
-    setLists((prev) =>
-      prev.map((l) =>
-        l.id === list.id
-          ? { ...l, showIds: already ? l.showIds.filter((id) => id !== showId) : [...(l.showIds ?? []), showId] }
-          : l
-      )
-    );
+    setLists((prev) => {
+      const newLists = prev.map((l) =>
+        l.id === list.id ? { ...l, showIds: newShowIds } : l
+      );
+      onListChange?.(newLists.some((l) => (l.showIds ?? []).includes(showId)));
+      return newLists;
+    });
     setSaving(null);
   };
 
@@ -505,14 +370,16 @@ const ShowCard = ({ route, navigation }) => {
   const [showSeasonPicker, setShowSeasonPicker] = useState(false);
   const [showAllReviews, setShowAllReviews] = useState(false);
   const [showRateModal, setShowRateModal] = useState(false);
+  const [showListModal, setShowListModal] = useState(false);
+  const [showInList, setShowInList] = useState(false);
   const [myRating, setMyRating] = useState(0);
   const [ratingSaved, setRatingSaved] = useState(false);
   const [hearted, setHearted] = useState(false);
   const [liked, setLiked] = useState(false); // liked (Hearted)
   const [reviewText, setReviewText] = useState("");
   const [expandDescription, setExpandDescription] = useState(false);
-  const [showListModal, setShowListModal] = useState(false);
-  const [commentsModalReview, setCommentsModalReview] = useState(null);
+  const [commentCounts, setCommentCounts] = useState({});
+  const [reviewerPhotos, setReviewerPhotos] = useState({});
   const scrollViewRef = useRef(null);
 
   // ── Load / refresh reviews + liked state ──
@@ -527,6 +394,28 @@ const ShowCard = ({ route, navigation }) => {
         const likedSnap = await getDocs(collection(db, "users", user.uid, "reviewLikes"));
         setLikedReviewIds(new Set(likedSnap.docs.map((d) => d.id)));
       }
+
+      // Comment counts per review
+      const countResults = await Promise.allSettled(
+        docs.map((d) => getDocs(collection(db, "shows", String(showId), "reviews", d.id, "comments")))
+      );
+      const counts = {};
+      countResults.forEach((r, i) => {
+        if (r.status === "fulfilled") counts[docs[i].id] = r.value.size;
+      });
+      setCommentCounts(counts);
+
+      // Reviewer profile photos
+      const uids = [...new Set(docs.map((d) => d.uid).filter(Boolean))];
+      const userResults = await Promise.allSettled(uids.map((uid) => getDoc(doc(db, "users", uid))));
+      const photos = {};
+      userResults.forEach((r, i) => {
+        if (r.status === "fulfilled" && r.value.exists()) {
+          const data = r.value.data();
+          if (data.photoURL) photos[uids[i]] = data.photoURL;
+        }
+      });
+      setReviewerPhotos(photos);
     } catch (err) {
       console.error("[ShowCard] refreshReviews error:", err);
     }
@@ -567,10 +456,16 @@ const ShowCard = ({ route, navigation }) => {
         }
       }
 
-      const [ratingResult, userRatingResult] = await Promise.allSettled([
+      const [ratingResult, userRatingResult, diaryResult, listsResult] = await Promise.allSettled([
         getDoc(doc(db, "shows", String(showId))),
         auth.currentUser
           ? getDoc(doc(db, "users", auth.currentUser.uid, "showRatings", String(showId)))
+          : Promise.resolve(null),
+        auth.currentUser
+          ? getDocs(query(collection(db, "users", auth.currentUser.uid, "diary"), where("showId", "==", showId), where("type", "==", "show"), limit(1)))
+          : Promise.resolve(null),
+        auth.currentUser
+          ? getDocs(query(collection(db, "lists"), where("userId", "==", auth.currentUser.uid), where("showIds", "array-contains", showId)))
           : Promise.resolve(null),
       ]);
 
@@ -582,6 +477,12 @@ const ShowCard = ({ route, navigation }) => {
       }
       if (userRatingResult.status === "fulfilled" && userRatingResult.value?.exists()) {
         setMyRating(userRatingResult.value.data().rating);
+      }
+      if (diaryResult.status === "fulfilled" && diaryResult.value && !diaryResult.value.empty) {
+        setLiked(diaryResult.value.docs[0].data().liked ?? false);
+      }
+      if (listsResult.status === "fulfilled" && listsResult.value) {
+        setShowInList(!listsResult.value.empty);
       }
     } catch (err) {
       console.error("[ShowCard] fetch error:", err);
@@ -618,6 +519,18 @@ const ShowCard = ({ route, navigation }) => {
       console.error("Toggle review like error:", err);
     }
   };
+
+  // ── Toggle liked on the show ──
+  const handleToggleLiked = useCallback(async () => {
+    const newLiked = !liked;
+    setLiked(newLiked);
+    try {
+      await writeDiaryEntry(showId, show?.name ?? "", myRating, null, newLiked);
+    } catch (err) {
+      console.error("[ShowCard] toggle liked error:", err);
+      setLiked(!newLiked);
+    }
+  }, [liked, showId, show?.name, myRating]);
 
   // ── Derived data ──
   const episodesForActiveSeason = allEpisodes.filter(
@@ -783,11 +696,13 @@ const ShowCard = ({ route, navigation }) => {
           </TouchableOpacity>
           {/* Add to List */}
           <TouchableOpacity
-            style={styles.actionBtn}
+            style={[styles.actionBtn, showInList && { backgroundColor: C.accentSoft, borderColor: C.accent + "60" }]}
             onPress={() => setShowListModal(true)}
           >
-            <Text style={styles.actionIcon}>＋</Text>
-            <Text style={styles.actionLabel}>Lists</Text>
+            <Text style={[styles.actionIcon, { color: showInList ? C.accent : C.subtext }]}>
+              {showInList ? "✓" : "＋"}
+            </Text>
+            <Text style={[styles.actionLabel, showInList && { color: C.accent }]}>Lists</Text>
           </TouchableOpacity>
         </View>
 
@@ -974,7 +889,18 @@ const ShowCard = ({ route, navigation }) => {
                 compact={!showAllReviews}
                 isLiked={likedReviewIds.has(r.id)}
                 onToggleLike={() => toggleReviewLike(r.id)}
-                onComment={() => setCommentsModalReview(r)}
+                navigation={navigation}
+                photoURL={reviewerPhotos[r.uid] ?? null}
+                commentCount={commentCounts[r.id] ?? 0}
+                onComment={() => navigation.navigate("ReviewDetail", {
+                  review: {
+                    ...r,
+                    createdAt: r.createdAt?.toDate?.()?.toISOString() ?? null,
+                    updatedAt: r.updatedAt?.toDate?.()?.toISOString() ?? null,
+                  },
+                  showId,
+                  photoURL: reviewerPhotos[r.uid] ?? null,
+                })}
               />
             ))
           ) : (
@@ -1070,6 +996,7 @@ const ShowCard = ({ route, navigation }) => {
         visible={showListModal}
         onClose={() => setShowListModal(false)}
         showId={showId}
+        onListChange={setShowInList}
       />
     </SafeAreaView>
   );

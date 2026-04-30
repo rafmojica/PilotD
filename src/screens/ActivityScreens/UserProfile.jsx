@@ -221,7 +221,11 @@ const FollowingTab = ({ followingUsers, navigation }) => {
           key={u.uid}
           style={styles.followingRow}
           activeOpacity={0.7}
-          onPress={() => navigation.navigate("UserProfile", { userId: u.uid, displayName: u.displayName })}
+          onPress={() =>
+            u.uid === auth.currentUser?.uid
+              ? navigation.navigate("ProfileTab")
+              : navigation.navigate("UserProfile", { userId: u.uid, displayName: u.displayName })
+          }
         >
           <InitialsAvatar name={u.displayName} photoURL={u.photoURL} size={40} />
           <View style={styles.followingInfo}>
@@ -238,6 +242,12 @@ const FollowingTab = ({ followingUsers, navigation }) => {
 
 const UserProfile = ({ navigation, route }) => {
   const { userId, displayName: initialName } = route.params;
+
+  useEffect(() => {
+    if (userId === auth.currentUser?.uid) {
+      navigation.navigate("ProfileTab");
+    }
+  }, [userId, navigation]);
 
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
