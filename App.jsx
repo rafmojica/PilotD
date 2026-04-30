@@ -31,6 +31,7 @@ import TotpSetup from "./src/screens/TotpSetup";
 import Shows from "./src/screens/ProfileScreens/Shows";
 import Reviews from "./src/screens/ProfileScreens/Reviews";
 import Likes from "./src/screens/ProfileScreens/Likes";
+import ListDetail from "./src/screens/ProfileScreens/ListDetail";
 
 import ShowCard from "./src/screens/ShowCard";
 import EpisodeCard from "./src/screens/EpisodeCard";
@@ -68,6 +69,7 @@ const ProfileNavigator = () => (
     <ProfileStack.Screen name="Shows" component={Shows} />
     <ProfileStack.Screen name="Reviews" component={Reviews} />
     <ProfileStack.Screen name="Likes" component={Likes} />
+    <ProfileStack.Screen name="ListDetail" component={ListDetail} />
   </ProfileStack.Navigator>
 );
 
