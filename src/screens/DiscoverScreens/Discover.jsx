@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback } from "react";
 import FadeInView from "../../components/FadeInView";
 import PressScale from "../../components/PressScale";
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "../../config/firebase";
 import {
   View,
   Text,
@@ -81,10 +83,12 @@ const formatRating = (r) => (r ? r.toFixed(1) : null);
 
 // ─── ShowCard component ───────────────────────────────────────────────────────
 
-const ShowCard = ({ show, size = "md", navigation }) => {
+const ShowCard = ({ show, size = "md", navigation, communityRatings }) => {
   const isSm = size === "sm";
   const cardW = isSm ? 100 : 126;
   const posterH = isSm ? 150 : 190;
+  const communityAvg = communityRatings?.[show.id]?.average;
+  const displayRating = communityAvg ?? show.rating?.average;
 
   return (
     <PressScale
@@ -98,10 +102,10 @@ const ShowCard = ({ show, size = "md", navigation }) => {
           style={styles.poster}
           resizeMode="cover"
         />
-        {show.rating?.average ? (
+        {displayRating ? (
           <View style={styles.ratingBadge}>
             <Text style={styles.ratingBadgeText}>
-              ★ {formatRating(show.rating.average)}
+              ★ {formatRating(displayRating)}
             </Text>
           </View>
         ) : null}
@@ -125,7 +129,7 @@ const ShowCard = ({ show, size = "md", navigation }) => {
 
 // ─── SectionRow component ────────────────────────────────────────────────────
 
-const SectionRow = ({ emoji, title, data, cardSize, navigation }) => (
+const SectionRow = ({ emoji, title, data, cardSize, navigation, communityRatings }) => (
   <View style={styles.section}>
     <View style={styles.sectionHeader}>
       <View style={styles.sectionTitleRow}>
@@ -137,7 +141,7 @@ const SectionRow = ({ emoji, title, data, cardSize, navigation }) => (
       data={data}
       horizontal
       keyExtractor={(item) => `${title}-${item.id}`}
-      renderItem={({ item }) => <ShowCard show={item} size={cardSize} navigation={navigation} />}
+      renderItem={({ item }) => <ShowCard show={item} size={cardSize} navigation={navigation} communityRatings={communityRatings} />}
       showsHorizontalScrollIndicator={false}
       contentContainerStyle={styles.hList}
     />
@@ -146,8 +150,9 @@ const SectionRow = ({ emoji, title, data, cardSize, navigation }) => (
 
 // ─── HeroBanner component ────────────────────────────────────────────────────
 
-const HeroBanner = ({ show, navigation }) => {
+const HeroBanner = ({ show, navigation, communityRating }) => {
   if (!show) return null;
+  const displayRating = communityRating?.average ?? show.rating?.average;
   return (
     <PressScale
       style={styles.hero}
@@ -166,10 +171,10 @@ const HeroBanner = ({ show, navigation }) => {
           <View style={styles.featuredBadge}>
             <Text style={styles.featuredBadgeText}>✦  FEATURED</Text>
           </View>
-          {show.rating?.average ? (
+          {displayRating ? (
             <View style={styles.heroRatingBadge}>
               <Text style={styles.heroRatingText}>
-                ★ {formatRating(show.rating.average)}
+                ★ {formatRating(displayRating)}
               </Text>
             </View>
           ) : null}
@@ -213,6 +218,7 @@ const Discover = ({ navigation }) => {
   const [recentPremiers, setRecentPremiers] = useState([]);
   const [dramas, setDramas] = useState([]);
   const [comedies, setComedies] = useState([]);
+  const [communityRatings, setCommunityRatings] = useState({});
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeFilter, setActiveFilter] = useState("All");
@@ -278,22 +284,45 @@ const Discover = ({ navigation }) => {
       const featuredPick = featuredPool[Math.floor(Math.random() * Math.min(featuredPool.length, 10))]
         ?? popularShows[0];
 
+      const dramaShows = [...popularShows, ...scheduleShows]
+        .filter((s) => s.genres?.includes("Drama") && s.image?.medium)
+        .filter((s, i, arr) => arr.findIndex((x) => x.id === s.id) === i)
+        .slice(0, 18);
+      const comedyShows = [...popularShows, ...scheduleShows]
+        .filter((s) => s.genres?.includes("Comedy") && s.image?.medium)
+        .filter((s, i, arr) => arr.findIndex((x) => x.id === s.id) === i)
+        .slice(0, 18);
+
       setFeatured(featuredPick ?? null);
       setOnAirToday(scheduleShows.slice(0, 20));
       setTopRated(byRating.slice(0, 20));
       setRecentPremiers(recentAll.slice(0, 20));
-      setDramas(
-        [...popularShows, ...scheduleShows]
-          .filter((s) => s.genres?.includes("Drama") && s.image?.medium)
-          .filter((s, i, arr) => arr.findIndex((x) => x.id === s.id) === i)
-          .slice(0, 18)
+      setDramas(dramaShows);
+      setComedies(comedyShows);
+
+      // ── Fetch community ratings from Firestore ──
+      const allIds = [...new Set([
+        featuredPick?.id,
+        ...scheduleShows.slice(0, 20).map((s) => s.id),
+        ...byRating.slice(0, 20).map((s) => s.id),
+        ...recentAll.slice(0, 20).map((s) => s.id),
+        ...dramaShows.map((s) => s.id),
+        ...comedyShows.map((s) => s.id),
+      ].filter(Boolean))];
+
+      const ratingResults = await Promise.allSettled(
+        allIds.map((id) => getDoc(doc(db, "shows", String(id))))
       );
-      setComedies(
-        [...popularShows, ...scheduleShows]
-          .filter((s) => s.genres?.includes("Comedy") && s.image?.medium)
-          .filter((s, i, arr) => arr.findIndex((x) => x.id === s.id) === i)
-          .slice(0, 18)
-      );
+      const ratingsMap = {};
+      ratingResults.forEach((r, i) => {
+        if (r.status === "fulfilled" && r.value.exists()) {
+          const data = r.value.data();
+          if (data.averageRating) {
+            ratingsMap[allIds[i]] = { average: data.averageRating, total: data.totalRatings ?? 0 };
+          }
+        }
+      });
+      setCommunityRatings(ratingsMap);
     } catch (err) {
       console.error("[Discover] fetch error:", err);
     } finally {
@@ -407,7 +436,11 @@ const Discover = ({ navigation }) => {
         </View>
 
         {/* ── Hero banner ── */}
-        <HeroBanner show={featured} navigation={navigation} />
+        <HeroBanner
+          show={featured}
+          navigation={navigation}
+          communityRating={communityRatings[featured?.id]}
+        />
 
         {/* ── Show rows ── */}
         {basePool.length > 0 && (
@@ -421,6 +454,7 @@ const Discover = ({ navigation }) => {
             }
             data={trendingDisplay}
             navigation={navigation}
+            communityRatings={communityRatings}
           />
         )}
         <SectionRow
@@ -428,12 +462,14 @@ const Discover = ({ navigation }) => {
           title="Top Rated All Time"
           data={topRated}
           navigation={navigation}
+          communityRatings={communityRatings}
         />
         <SectionRow
           emoji="✨"
           title="Recently Added"
           data={recentPremiers}
           navigation={navigation}
+          communityRatings={communityRatings}
         />
         {dramas.length > 0 && (
           <SectionRow
@@ -441,6 +477,7 @@ const Discover = ({ navigation }) => {
             title="Popular Dramas"
             data={dramas}
             navigation={navigation}
+            communityRatings={communityRatings}
           />
         )}
         {comedies.length > 0 && (
@@ -449,6 +486,7 @@ const Discover = ({ navigation }) => {
             title="Fan Favorite Comedies"
             data={comedies}
             navigation={navigation}
+            communityRatings={communityRatings}
           />
         )}
 
