@@ -147,20 +147,38 @@ const FavoriteShowCard = ({ favShow }) => {
 
 // ─── Recent Activity Card ─────────────────────────────────────────────────────
 
-const ActivityCard = ({ rating, posterUri, onPress }) => (
-  <PressScale scale={0.94} onPress={onPress}>
-    <View style={styles.activityCard}>
-      {posterUri ? (
-        <Image source={{ uri: posterUri }} style={styles.activityPoster} resizeMode="cover" />
-      ) : (
-        <View style={[styles.activityPoster, styles.posterPlaceholder]} />
-      )}
-      <View style={styles.activityRating}>
-        <Stars rating={rating} size={10} />
+const ActivityCard = ({ entry, posterUri, onPress }) => {
+  const isEpisode = entry?.type === "episode";
+  const epLabel = isEpisode && entry.seasonNumber != null && entry.episodeNumber != null
+    ? `S${String(entry.seasonNumber).padStart(2, "0")}E${String(entry.episodeNumber).padStart(2, "0")}`
+    : null;
+
+  return (
+    <PressScale scale={0.94} onPress={onPress}>
+      <View style={styles.activityCard}>
+        <View style={styles.activityPoster}>
+          {posterUri ? (
+            <Image
+              source={{ uri: posterUri }}
+              style={[StyleSheet.absoluteFill, { borderRadius: 8, opacity: isEpisode ? 0.4 : 1 }]}
+              resizeMode="cover"
+            />
+          ) : (
+            <View style={[StyleSheet.absoluteFill, { borderRadius: 8, backgroundColor: C.surface }]} />
+          )}
+          {epLabel && (
+            <View style={styles.epLabelOverlay}>
+              <Text style={styles.epLabelText}>{epLabel}</Text>
+            </View>
+          )}
+        </View>
+        <View style={styles.activityRating}>
+          <Stars rating={entry?.rating ?? 0} size={10} />
+        </View>
       </View>
-    </View>
-  </PressScale>
-);
+    </PressScale>
+  );
+};
 
 // ─── Profile Tabs ─────────────────────────────────────────────────────────────
 
@@ -174,30 +192,49 @@ const ReviewsList = ({ entries, posters, navigation }) => {
   }
   return (
     <View style={styles.reviewsList}>
-      {entries.map((entry) => (
-        <TouchableOpacity
-          key={entry.id}
-          style={styles.reviewCard}
-          activeOpacity={0.8}
-          onPress={() => navigation.navigate("ShowCard", { showId: entry.showId })}
-        >
-          <View style={styles.reviewCardHeader}>
-            <Text style={styles.reviewCardTitle} numberOfLines={1}>
-              {entry.showName}
-            </Text>
-            {entry.rating > 0 && <Stars rating={entry.rating} size={11} />}
-          </View>
-          <Text style={styles.reviewCardText} numberOfLines={4}>{entry.review}</Text>
-          {entry.watchedDate && (
-            <Text style={styles.reviewCardTime}>
-              {(entry.watchedDate?.toDate?.() ?? new Date(entry.watchedDate)).toLocaleDateString(
-                "en-US",
-                { month: "short", year: "numeric" },
-              )}
-            </Text>
-          )}
-        </TouchableOpacity>
-      ))}
+      {entries.map((entry) => {
+        const isEpisode = entry.type === "episode";
+        const epLabel = isEpisode && entry.seasonNumber != null && entry.episodeNumber != null
+          ? `S${String(entry.seasonNumber).padStart(2, "0")}E${String(entry.episodeNumber).padStart(2, "0")}`
+          : null;
+
+        return (
+          <TouchableOpacity
+            key={entry.id}
+            style={styles.reviewCard}
+            activeOpacity={0.8}
+            onPress={() => {
+              if (isEpisode) {
+                navigation.navigate("EpisodeCard", {
+                  episodeId: entry.episodeId,
+                  showId: entry.showId,
+                  showName: entry.showName,
+                  seasonNumber: entry.seasonNumber,
+                });
+              } else {
+                navigation.navigate("ShowCard", { showId: entry.showId });
+              }
+            }}
+          >
+            <View style={styles.reviewCardHeader}>
+              <Text style={styles.reviewCardTitle} numberOfLines={1}>
+                {entry.showName}
+                {epLabel ? <Text style={styles.reviewCardEpLabel}>{"  "}{epLabel}</Text> : null}
+              </Text>
+              {entry.rating > 0 && <Stars rating={entry.rating} size={11} />}
+            </View>
+            <Text style={styles.reviewCardText} numberOfLines={4}>{entry.review}</Text>
+            {entry.watchedDate && (
+              <Text style={styles.reviewCardTime}>
+                {(entry.watchedDate?.toDate?.() ?? new Date(entry.watchedDate)).toLocaleDateString(
+                  "en-US",
+                  { month: "short", year: "numeric" },
+                )}
+              </Text>
+            )}
+          </TouchableOpacity>
+        );
+      })}
     </View>
   );
 };
@@ -515,9 +552,20 @@ const Profile = ({ navigation }) => {
                 {recentActivity.map((entry) => (
                   <ActivityCard
                     key={entry.id}
-                    rating={entry.rating}
+                    entry={entry}
                     posterUri={posters[entry.showId]}
-                    onPress={() => navigation.navigate("ShowCard", { showId: entry.showId })}
+                    onPress={() => {
+                      if (entry.type === "episode") {
+                        navigation.navigate("EpisodeCard", {
+                          episodeId: entry.episodeId,
+                          showId: entry.showId,
+                          showName: entry.showName,
+                          seasonNumber: entry.seasonNumber,
+                        });
+                      } else {
+                        navigation.navigate("ShowCard", { showId: entry.showId });
+                      }
+                    }}
                   />
                 ))}
               </View>
@@ -730,9 +778,27 @@ const styles = StyleSheet.create({
     height: CARD_H,
     borderRadius: 8,
     backgroundColor: C.surface,
+    overflow: "hidden",
+    justifyContent: "flex-end",
+    alignItems: "center",
   },
   posterPlaceholder: { justifyContent: "center", alignItems: "center" },
   activityRating: { marginTop: 5 },
+  epLabelOverlay: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: "rgba(8,28,21,0.78)",
+    paddingVertical: 4,
+    alignItems: "center",
+  },
+  epLabelText: {
+    fontSize: 9,
+    fontWeight: "800",
+    color: C.accent,
+    letterSpacing: 0.5,
+  },
 
   // Rating distribution (horizontal)
   chartContainer: { paddingHorizontal: 20, paddingTop: 20, paddingBottom: 4 },
@@ -854,6 +920,7 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
   },
   reviewCardTime: { fontSize: 11, color: "#40916C" },
+  reviewCardEpLabel: { fontSize: 12, color: C.accent, fontWeight: "700" },
 
   // Following tab
   followingRow: {

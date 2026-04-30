@@ -674,19 +674,6 @@ const EpisodeCard = ({ route, navigation }) => {
         {/* ── Action buttons ── */}
         <View style={styles.actionRow}>
           <TouchableOpacity
-            style={[
-              styles.actionBtn,
-              hearted && { backgroundColor: C.heartSoft, borderColor: C.heart + "60" },
-            ]}
-            onPress={() => setHearted((p) => !p)}
-          >
-            <Text style={[styles.actionIcon, { color: hearted ? C.heart : C.subtext }]}>
-              {hearted ? "♥" : "♡"}
-            </Text>
-            <Text style={[styles.actionLabel, hearted && { color: C.heart }]}>Like</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
             style={[styles.actionBtn, styles.actionBtnPrimary]}
             onPress={() => setShowRateModal(true)}
           >
