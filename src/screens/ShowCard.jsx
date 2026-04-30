@@ -82,7 +82,7 @@ const submitShowRating = async (showId, newRating, prevRating) => {
   });
 };
 
-const writeDiaryEntry = async (showId, showName, rating, reviewText) => {
+const writeDiaryEntry = async (showId, showName, rating, reviewText, likedValue = false) => {
   const user = auth.currentUser;
   if (!user) return;
   const existingQuery = await getDocs(
@@ -96,7 +96,7 @@ const writeDiaryEntry = async (showId, showName, rating, reviewText) => {
     review: reviewText ?? null,
     watchedDate: serverTimestamp(),
     rewatch: !existingQuery.empty,
-    liked: false,
+    liked: likedValue,
     updatedAt: serverTimestamp(),
   };
   if (!existingQuery.empty) {
@@ -443,7 +443,7 @@ const ShowCard = ({ route, navigation }) => {
   const [myRating, setMyRating] = useState(0);
   const [ratingSaved, setRatingSaved] = useState(false);
   const [hearted, setHearted] = useState(false);
-  const [liked, setLiked] = useState(false);
+  const [liked, setLiked] = useState(false); // liked (Hearted)
   const [reviewText, setReviewText] = useState("");
   const [expandDescription, setExpandDescription] = useState(false);
   const [commentsModalReview, setCommentsModalReview] = useState(null);
@@ -585,6 +585,12 @@ const ShowCard = ({ route, navigation }) => {
   if (!show) {
     return (
       <SafeAreaView style={styles.loadingScreen}>
+        <TouchableOpacity
+          style={[styles.backBtn, { position: "relative", top: 0, left: 0, marginBottom: 16 }]}
+          onPress={() => navigation?.goBack()}
+        >
+          <Text style={styles.backBtnText}>‹ Back</Text>
+        </TouchableOpacity>
         <Text style={styles.loadingText}>Show not found.</Text>
       </SafeAreaView>
     );
@@ -689,14 +695,15 @@ const ShowCard = ({ route, navigation }) => {
 
         {/* ── Action buttons ── */}
         <View style={styles.actionRow}>
+          {/* Like / Heart */}
           <TouchableOpacity
-            style={[styles.actionBtn, hearted && { backgroundColor: C.heartSoft, borderColor: C.heart + "60" }]}
-            onPress={() => setHearted((p) => !p)}
+            style={[styles.actionBtn, liked && { backgroundColor: C.heartSoft, borderColor: C.heart + "60" }]}
+            onPress={handleToggleLiked}
           >
-            <Text style={[styles.actionIcon, { color: hearted ? C.heart : C.subtext }]}>
-              {hearted ? "♥" : "♡"}
+            <Text style={[styles.actionIcon, { color: liked ? C.heart : C.subtext }]}>
+              {liked ? "♥" : "♡"}
             </Text>
-            <Text style={[styles.actionLabel, hearted && { color: C.heart }]}>Save</Text>
+            <Text style={[styles.actionLabel, liked && { color: C.heart }]}>Like</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -989,7 +996,7 @@ const ShowCard = ({ route, navigation }) => {
           setMyRating(newRating);
           setShowRateModal(false);
           await submitShowRating(showId, newRating, myRating);
-          await writeDiaryEntry(showId, show.name, newRating, null);
+          await writeDiaryEntry(showId, show.name, newRating, null, liked);
         }}
         showTitle={show.name}
       />

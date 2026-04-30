@@ -28,6 +28,9 @@ import Lists from "./src/screens/ProfileScreens/Lists";
 import Settings from "./src/screens/ProfileScreens/Settings";
 import EditProfile from "./src/screens/ProfileScreens/EditProfile";
 import TotpSetup from "./src/screens/TotpSetup";
+import Shows from "./src/screens/ProfileScreens/Shows";
+import Reviews from "./src/screens/ProfileScreens/Reviews";
+import Likes from "./src/screens/ProfileScreens/Likes";
 
 import ShowCard from "./src/screens/ShowCard";
 import EpisodeCard from "./src/screens/EpisodeCard";
@@ -62,6 +65,9 @@ const ProfileNavigator = () => (
     <ProfileStack.Screen name="TotpSetup" component={TotpSetup} />
     <ProfileStack.Screen name="Settings" component={Settings} options={{ presentation: "modal" }} />
     <ProfileStack.Screen name="EditProfile" component={EditProfile} options={{ presentation: "modal" }} />
+    <ProfileStack.Screen name="Shows" component={Shows} />
+    <ProfileStack.Screen name="Reviews" component={Reviews} />
+    <ProfileStack.Screen name="Likes" component={Likes} />
   </ProfileStack.Navigator>
 );
 
