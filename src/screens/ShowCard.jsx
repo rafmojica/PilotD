@@ -447,6 +447,7 @@ const ShowCard = ({ route, navigation }) => {
   const [reviewText, setReviewText] = useState("");
   const [expandDescription, setExpandDescription] = useState(false);
   const [commentsModalReview, setCommentsModalReview] = useState(null);
+  const scrollViewRef = useRef(null);
 
   // ── Load / refresh reviews + liked state ──
   const refreshReviews = useCallback(async () => {
@@ -599,7 +600,17 @@ const ShowCard = ({ route, navigation }) => {
         <Text style={styles.backBtnText}>‹ Back</Text>
       </TouchableOpacity>
 
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scroll}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={0}
+      >
+      <ScrollView
+        ref={scrollViewRef}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scroll}
+        keyboardShouldPersistTaps="handled"
+      >
 
         {/* ── Hero ── */}
         <View style={styles.hero}>
@@ -914,6 +925,7 @@ const ShowCard = ({ route, navigation }) => {
               multiline
               value={reviewText}
               onChangeText={setReviewText}
+              onFocus={() => setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 150)}
             />
             <TouchableOpacity
               style={[styles.submitBtn, !reviewText.trim() && styles.submitBtnDisabled]}
@@ -957,6 +969,7 @@ const ShowCard = ({ route, navigation }) => {
         </Section>
 
       </ScrollView>
+      </KeyboardAvoidingView>
 
       {/* ── Modals ── */}
       <SeasonPicker

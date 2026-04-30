@@ -92,7 +92,10 @@ const ShowSearchModal = ({ visible, onClose, onSelect }) => {
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={styles.searchModalBackdrop}>
+      <KeyboardAvoidingView
+        style={styles.searchModalBackdrop}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
         <View style={styles.searchModalSheet}>
           <View style={styles.searchModalHeader}>
             <Text style={styles.searchModalTitle}>Choose a Show</Text>
@@ -168,7 +171,7 @@ const ShowSearchModal = ({ visible, onClose, onSelect }) => {
             }
           />
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 };

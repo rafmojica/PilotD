@@ -235,7 +235,7 @@ const LikesGrid = ({ entries, posters, navigation }) => {
   );
 };
 
-const FollowingTab = ({ followingUsers, followingCount }) => {
+const FollowingTab = ({ followingUsers, followingCount, navigation }) => {
   if (followingUsers.length === 0) {
     return (
       <View style={styles.tabEmpty}>
@@ -246,13 +246,18 @@ const FollowingTab = ({ followingUsers, followingCount }) => {
   return (
     <View>
       {followingUsers.map((u) => (
-        <View key={u.uid} style={styles.followingRow}>
+        <TouchableOpacity
+          key={u.uid}
+          style={styles.followingRow}
+          activeOpacity={0.7}
+          onPress={() => navigation.navigate("UserProfile", { userId: u.uid, displayName: u.displayName })}
+        >
           <InitialsAvatar name={u.displayName} photoURL={u.photoURL} size={40} />
           <View style={styles.followingInfo}>
             <Text style={styles.followingName}>{u.displayName}</Text>
             {u.username ? <Text style={styles.followingHandle}>@{u.username}</Text> : null}
           </View>
-        </View>
+        </TouchableOpacity>
       ))}
     </View>
   );
@@ -558,7 +563,7 @@ const Profile = ({ navigation }) => {
             </View>
           )}
           {activeTab === "Following" && (
-            <FollowingTab followingUsers={followingUsers} followingCount={counts.followingCount} />
+            <FollowingTab followingUsers={followingUsers} followingCount={counts.followingCount} navigation={navigation} />
           )}
 
           {/* ── Stats List ── */}
