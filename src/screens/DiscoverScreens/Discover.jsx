@@ -357,22 +357,6 @@ const Discover = ({ navigation }) => {
           />
         }
       >
-        {/* ── Top bar ── */}
-        <View style={styles.topBar}>
-          <View>
-            <Text style={styles.logoText}>PILOTD</Text>
-            <Text style={styles.logoSub}>Track. Rate. Discover.</Text>
-          </View>
-          <View style={styles.topBarRight}>
-            <TouchableOpacity style={styles.iconCircle}>
-              <Text style={styles.iconEmoji}>🔔</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.iconCircle, { marginLeft: 8 }]}>
-              <Text style={styles.iconEmoji}>👤</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
         {/* ── Page heading ── */}
         <View style={styles.pageHead}>
           <Text style={styles.pageHeadTitle}>Discover</Text>

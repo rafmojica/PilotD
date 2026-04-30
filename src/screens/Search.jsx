@@ -419,10 +419,11 @@ const Search = ({ navigation }) => {
                 followed={!!followed[user.uid]}
                 followLoading={!!followLoading[user.uid]}
                 onToggleFollow={() => toggleFollow(user.uid)}
-                onPress={() => navigation.navigate("UserProfile", {
-                  userId: user.uid,
-                  displayName: user.displayName,
-                })}
+                onPress={() =>
+                  user.uid === auth.currentUser?.uid
+                    ? navigation.navigate("ProfileTab")
+                    : navigation.navigate("UserProfile", { userId: user.uid, displayName: user.displayName })
+                }
               />
             ))}
           </>
@@ -458,10 +459,9 @@ const Search = ({ navigation }) => {
                     followLoading={!!followLoading[user.uid]}
                     onToggleFollow={() => toggleFollow(user.uid)}
                     onPress={() =>
-                      navigation.navigate("UserProfile", {
-                        userId: user.uid,
-                        displayName: user.displayName,
-                      })
+                      user.uid === auth.currentUser?.uid
+                        ? navigation.navigate("ProfileTab")
+                        : navigation.navigate("UserProfile", { userId: user.uid, displayName: user.displayName })
                     }
                   />
                 ))}
