@@ -34,6 +34,7 @@ import Likes from "./src/screens/ProfileScreens/Likes";
 
 import ShowCard from "./src/screens/ShowCard";
 import EpisodeCard from "./src/screens/EpisodeCard";
+import UserProfile from "./src/screens/ActivityScreens/UserProfile";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -170,6 +171,7 @@ const App = () => {
         )}
         <Stack.Screen name="ShowCard" component={ShowCard} />
         <Stack.Screen name="EpisodeCard" component={EpisodeCard} />
+        <Stack.Screen name="UserProfile" component={UserProfile} />
       </Stack.Navigator>
     </NavigationContainer>
   );

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import Svg, { Circle, Line, Path } from "react-native-svg";
 import FadeInView from "../components/FadeInView";
 import {
@@ -13,7 +13,6 @@ import {
   SafeAreaView,
   StatusBar,
   ActivityIndicator,
-  Alert,
 } from "react-native";
 import {
   collection,
@@ -21,21 +20,21 @@ import {
   where,
   limit,
   getDocs,
+  doc,
+  getDoc,
+  setDoc,
+  deleteDoc,
+  serverTimestamp,
 } from "firebase/firestore";
 import { db, auth } from "../config/firebase.js";
+import InitialsAvatar from "../components/InitialsAvatar";
 
 // ─── API ──────────────────────────────────────────────────────────────────────
 
 const TVMAZE = "https://api.tvmaze.com";
 const DEBOUNCE_MS = 350;
 
-const TRENDING_SEARCHES = [
-  "Severance",
-  "The Bear",
-  "Slow Horses",
-  "Andor",
-  "Succession",
-];
+const FEATURED_SHOW_NAMES = ["Severance", "The Bear", "Succession", "The Last of Us"];
 
 // ─── Colors ───────────────────────────────────────────────────────────────────
 
@@ -54,7 +53,6 @@ const C = {
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const stripHtml = (html) => (html ? html.replace(/<[^>]*>/g, "").trim() : "");
 
 const initials = (name = "") =>
   name
@@ -125,42 +123,122 @@ const ShowResult = ({ item, onPress }) => {
   );
 };
 
-const UserResult = ({ user, followed, onToggleFollow }) => (
-  <TouchableOpacity style={styles.resultRow} activeOpacity={0.75}>
-    {user.photoURL ? (
-      <Image source={{ uri: user.photoURL }} style={styles.personThumb} resizeMode="cover" />
-    ) : (
-      <View style={[styles.personThumb, styles.personPlaceholder]}>
-        <Text style={styles.posterInitials}>
-          {initials(user.displayName || user.username)}
-        </Text>
-      </View>
-    )}
+const UserResult = ({ user, followed, followLoading, onToggleFollow, onPress }) => (
+  <TouchableOpacity style={styles.resultRow} activeOpacity={0.75} onPress={onPress}>
+    <InitialsAvatar
+      name={user.displayName || user.username}
+      photoURL={user.photoURL}
+      size={42}
+      style={{ flexShrink: 0 }}
+    />
     <View style={styles.resultInfo}>
       <Text style={styles.resultName} numberOfLines={1}>{user.displayName}</Text>
       <Text style={styles.resultSub} numberOfLines={1}>@{user.username}</Text>
     </View>
     <TouchableOpacity
       style={[styles.followBtn, followed && styles.followBtnFollowing]}
-      onPress={onToggleFollow}
+      onPress={(e) => { e.stopPropagation?.(); onToggleFollow(); }}
+      disabled={followLoading}
       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
     >
-      <Text style={[styles.followBtnText, followed && styles.followBtnTextFollowing]}>
-        {followed ? "Following" : "Follow"}
-      </Text>
+      {followLoading ? (
+        <ActivityIndicator size="small" color={followed ? C.accent : "#081C15"} style={{ width: 36 }} />
+      ) : (
+        <Text style={[styles.followBtnText, followed && styles.followBtnTextFollowing]}>
+          {followed ? "Following" : "Follow"}
+        </Text>
+      )}
     </TouchableOpacity>
   </TouchableOpacity>
 );
 
 // ─── Screen ──────────────────────────────────────────────────────────────────
 
-const Search = () => {
+const Search = ({ navigation }) => {
   const [searchText, setSearchText] = useState("");
   const [shows, setShows] = useState([]);
   const [appUsers, setAppUsers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [followed, setFollowed] = useState({});
+  const [followLoading, setFollowLoading] = useState({});
+  const [suggestedShows, setSuggestedShows] = useState([]);
+  const [suggestedPeople, setSuggestedPeople] = useState([]);
   const debounceRef = useRef(null);
+
+  const fetchSuggestedContent = useCallback(async () => {
+    const uid = auth.currentUser?.uid;
+
+    const showResults = await Promise.allSettled(
+      FEATURED_SHOW_NAMES.map((name) =>
+        fetch(`${TVMAZE}/search/shows?q=${encodeURIComponent(name)}`)
+          .then((r) => r.json())
+          .then((data) => (Array.isArray(data) && data[0] ? data[0].show : null)),
+      ),
+    );
+    setSuggestedShows(
+      showResults.filter((r) => r.status === "fulfilled" && r.value).map((r) => r.value),
+    );
+
+    if (!uid) return;
+
+    try {
+      const followingSnap = await getDocs(collection(db, "users", uid, "following"));
+      const myFollowing = new Set(followingSnap.docs.map((d) => d.id));
+
+      if (myFollowing.size === 0) return;
+
+      const theirFollowings = await Promise.allSettled(
+        [...myFollowing].map((fid) => getDocs(collection(db, "users", fid, "following"))),
+      );
+
+      const mutualCounts = {};
+      theirFollowings.forEach((result) => {
+        if (result.status !== "fulfilled") return;
+        result.value.forEach((d) => {
+          const targetUid = d.id;
+          if (targetUid !== uid && !myFollowing.has(targetUid)) {
+            mutualCounts[targetUid] = (mutualCounts[targetUid] || 0) + 1;
+          }
+        });
+      });
+
+      const sortedUids = Object.entries(mutualCounts)
+        .sort(([, a], [, b]) => b - a)
+        .slice(0, 4)
+        .map(([id]) => id);
+
+      if (sortedUids.length === 0) return;
+
+      const userDocs = await Promise.allSettled(
+        sortedUids.map((id) => getDoc(doc(db, "users", id))),
+      );
+
+      const people = userDocs
+        .map((r, i) =>
+          r.status === "fulfilled" && r.value.exists()
+            ? { uid: sortedUids[i], mutuals: mutualCounts[sortedUids[i]], ...r.value.data() }
+            : null,
+        )
+        .filter(Boolean);
+
+      setSuggestedPeople(people);
+
+      const checks = await Promise.allSettled(
+        people.map((p) => getDoc(doc(db, "users", uid, "following", p.uid))),
+      );
+      const init = {};
+      checks.forEach((r, i) => {
+        if (r.status === "fulfilled") init[people[i].uid] = r.value.exists();
+      });
+      setFollowed((prev) => ({ ...prev, ...init }));
+    } catch (err) {
+      console.error("[Search] suggested people error:", err);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchSuggestedContent();
+  }, [fetchSuggestedContent]);
 
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -212,7 +290,20 @@ const Search = () => {
             }
           });
         }
-        setAppUsers(results.slice(0, 5));
+        const users = results.slice(0, 5);
+        setAppUsers(users);
+
+        // Check which of the returned users the current user already follows
+        if (currentUid && users.length > 0) {
+          const checks = await Promise.allSettled(
+            users.map((u) => getDoc(doc(db, "users", currentUid, "following", u.uid)))
+          );
+          const init = {};
+          checks.forEach((r, i) => {
+            if (r.status === "fulfilled") init[users[i].uid] = r.value.exists();
+          });
+          setFollowed((prev) => ({ ...prev, ...init }));
+        }
       } catch (err) {
         console.error("[Search] fetch error:", err);
       } finally {
@@ -223,21 +314,34 @@ const Search = () => {
     return () => clearTimeout(debounceRef.current);
   }, [searchText]);
 
-  const toggleFollow = (uid) =>
-    setFollowed((prev) => ({ ...prev, [uid]: !prev[uid] }));
+  const toggleFollow = async (uid) => {
+    const currentUid = auth.currentUser?.uid;
+    if (!currentUid) return;
+
+    const willFollow = !followed[uid];
+    // Optimistic update
+    setFollowed((prev) => ({ ...prev, [uid]: willFollow }));
+    setFollowLoading((prev) => ({ ...prev, [uid]: true }));
+
+    try {
+      const myFollowingRef = doc(db, "users", currentUid, "following", uid);
+      const theirFollowersRef = doc(db, "users", uid, "followers", currentUid);
+      if (willFollow) {
+        const ts = { followedAt: serverTimestamp() };
+        await Promise.all([setDoc(myFollowingRef, ts), setDoc(theirFollowersRef, ts)]);
+      } else {
+        await Promise.all([deleteDoc(myFollowingRef), deleteDoc(theirFollowersRef)]);
+      }
+    } catch (err) {
+      console.error("[Search] follow error:", err);
+      setFollowed((prev) => ({ ...prev, [uid]: !willFollow }));
+    } finally {
+      setFollowLoading((prev) => ({ ...prev, [uid]: false }));
+    }
+  };
 
   const handleShowPress = (show) => {
-    Alert.alert(
-      show.name,
-      [
-        show.genres?.join(", "),
-        show.premiered?.slice(0, 4),
-        show.summary ? stripHtml(show.summary).slice(0, 120) + "…" : null,
-      ]
-        .filter(Boolean)
-        .join("\n\n"),
-      [{ text: "OK" }]
-    );
+    navigation.navigate("ShowCard", { showId: show.id });
   };
 
   const hasResults = shows.length > 0 || appUsers.length > 0;
@@ -313,7 +417,12 @@ const Search = () => {
                 key={user.uid}
                 user={user}
                 followed={!!followed[user.uid]}
+                followLoading={!!followLoading[user.uid]}
                 onToggleFollow={() => toggleFollow(user.uid)}
+                onPress={() => navigation.navigate("UserProfile", {
+                  userId: user.uid,
+                  displayName: user.displayName,
+                })}
               />
             ))}
           </>
@@ -327,21 +436,37 @@ const Search = () => {
           </View>
         )}
 
-        {/* Trending (empty state) */}
+        {/* Suggested (empty state) */}
         {!searchText && (
           <View>
-            <Text style={styles.sectionLabel}>Trending</Text>
-            {TRENDING_SEARCHES.map((t) => (
-              <TouchableOpacity
-                key={t}
-                style={styles.trendingRow}
-                onPress={() => setSearchText(t)}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.trendingArrow}>↗</Text>
-                <Text style={styles.trendingText}>{t}</Text>
-              </TouchableOpacity>
+            <Text style={styles.sectionLabel}>Shows</Text>
+            {suggestedShows.map((show) => (
+              <ShowResult
+                key={show.id}
+                item={{ show }}
+                onPress={() => navigation.navigate("ShowCard", { showId: show.id })}
+              />
             ))}
+            {suggestedPeople.length > 0 && (
+              <>
+                <Text style={[styles.sectionLabel, { marginTop: 12 }]}>People</Text>
+                {suggestedPeople.map((user) => (
+                  <UserResult
+                    key={user.uid}
+                    user={user}
+                    followed={!!followed[user.uid]}
+                    followLoading={!!followLoading[user.uid]}
+                    onToggleFollow={() => toggleFollow(user.uid)}
+                    onPress={() =>
+                      navigation.navigate("UserProfile", {
+                        userId: user.uid,
+                        displayName: user.displayName,
+                      })
+                    }
+                  />
+                ))}
+              </>
+            )}
           </View>
         )}
       </ScrollView>
@@ -363,10 +488,9 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
   },
   headerTitle: {
-    fontSize: 28,
-    fontWeight: "700",
+    fontSize: 32,
+    fontFamily: "DMSerifDisplay_400Regular",
     color: C.text,
-    letterSpacing: -0.5,
   },
 
   searchWrap: { paddingHorizontal: 20, paddingBottom: 16 },
@@ -461,18 +585,6 @@ const styles = StyleSheet.create({
   },
   followBtnText: { color: "#081C15", fontSize: 12, fontWeight: "600" },
   followBtnTextFollowing: { color: C.accent },
-
-  trendingRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: "rgba(45,106,79,0.1)",
-    gap: 10,
-  },
-  trendingArrow: { fontSize: 13, color: C.muted },
-  trendingText: { fontSize: 14, color: C.textSec },
 
   empty: {
     paddingTop: 48,
