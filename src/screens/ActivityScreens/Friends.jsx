@@ -15,6 +15,7 @@ import {
 import InitialsAvatar from "../../components/InitialsAvatar";
 import FadeInView from "../../components/FadeInView";
 import Svg, { Path } from "react-native-svg";
+import { auth } from "../../config/firebase";
 
 // ─── Mock Data ────────────────────────────────────────────────────────────────
 
@@ -249,10 +250,11 @@ const Friends = ({ navigation }) => {
   const [activities] = useState(MOCK_FRIEND_ACTIVITY);
 
   const handlePressUser = (friend) => {
-    navigation.navigate("UserProfile", {
-      userId: friend.id,
-      displayName: friend.displayName,
-    });
+    if (friend.id === auth.currentUser?.uid) {
+      navigation.navigate("ProfileTab");
+    } else {
+      navigation.navigate("UserProfile", { userId: friend.id, displayName: friend.displayName });
+    }
   };
 
   const handlePressShow = (show) => {

@@ -568,7 +568,7 @@ const Profile = ({ navigation }) => {
 
           {/* ── Stats List ── */}
           <View style={styles.statsSection}>
-            <StatRow label="Shows" value={counts.showsCount} onPress={() => navigation.navigate("Diary")} />
+            <StatRow label="Shows" value={counts.showsCount} onPress={() => navigation.navigate("Shows")} />
             <View style={styles.divider} />
             <StatRow label="Diary" value={counts.diaryCount} onPress={() => navigation.navigate("Diary")} />
             <View style={styles.divider} />

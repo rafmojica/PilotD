@@ -36,17 +36,29 @@ import ListDetail from "./src/screens/ProfileScreens/ListDetail";
 import ShowCard from "./src/screens/ShowCard";
 import EpisodeCard from "./src/screens/EpisodeCard";
 import UserProfile from "./src/screens/ActivityScreens/UserProfile";
+import ReviewDetail from "./src/screens/ReviewDetail";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 const ActivityStack = createNativeStackNavigator();
 const DiscoverStack = createNativeStackNavigator();
+const SearchStack = createNativeStackNavigator();
 const ProfileStack = createNativeStackNavigator();
+
+const SHARED_SCREENS = (Nav) => (
+  <>
+    <Nav.Screen name="ShowCard" component={ShowCard} />
+    <Nav.Screen name="EpisodeCard" component={EpisodeCard} />
+    <Nav.Screen name="UserProfile" component={UserProfile} />
+    <Nav.Screen name="ReviewDetail" component={ReviewDetail} />
+  </>
+);
 
 const ActivityNavigator = () => (
   <ActivityStack.Navigator screenOptions={{ headerShown: false }}>
     <ActivityStack.Screen name="Friends" component={Friends} />
     <ActivityStack.Screen name="Public" component={Public} />
+    {SHARED_SCREENS(ActivityStack)}
   </ActivityStack.Navigator>
 );
 
@@ -55,7 +67,15 @@ const DiscoverNavigator = () => (
     <DiscoverStack.Screen name="Discover" component={Discover} />
     <DiscoverStack.Screen name="MostPopularComments" component={MostPopularComments} />
     <DiscoverStack.Screen name="PublicLists" component={PublicLists} />
+    {SHARED_SCREENS(DiscoverStack)}
   </DiscoverStack.Navigator>
+);
+
+const SearchNavigator = () => (
+  <SearchStack.Navigator screenOptions={{ headerShown: false }}>
+    <SearchStack.Screen name="Search" component={Search} />
+    {SHARED_SCREENS(SearchStack)}
+  </SearchStack.Navigator>
 );
 
 const ProfileNavigator = () => (
@@ -70,6 +90,7 @@ const ProfileNavigator = () => (
     <ProfileStack.Screen name="Reviews" component={Reviews} />
     <ProfileStack.Screen name="Likes" component={Likes} />
     <ProfileStack.Screen name="ListDetail" component={ListDetail} />
+    {SHARED_SCREENS(ProfileStack)}
   </ProfileStack.Navigator>
 );
 
@@ -108,7 +129,7 @@ const MainTabs = () => (
       component={DiscoverNavigator}
       options={{ title: "Discover" }}
     />
-    <Tab.Screen name="Search" component={Search} />
+    <Tab.Screen name="Search" component={SearchNavigator} />
     <Tab.Screen
       name="ProfileTab"
       component={ProfileNavigator}
@@ -171,9 +192,6 @@ const App = () => {
             <Stack.Screen name="Login" component={Login} />
           </>
         )}
-        <Stack.Screen name="ShowCard" component={ShowCard} />
-        <Stack.Screen name="EpisodeCard" component={EpisodeCard} />
-        <Stack.Screen name="UserProfile" component={UserProfile} />
       </Stack.Navigator>
     </NavigationContainer>
   );
