@@ -280,6 +280,71 @@ const RateModal = ({ visible, onClose, currentRating, onRate, showTitle }) => {
   );
 };
 
+const AddToListModal = ({ visible, onClose, showId }) => {
+  const [lists, setLists] = useState([]);
+  const [saving, setSaving] = useState(null);
+
+  useEffect(() => {
+    if (!visible) return;
+    const uid = auth.currentUser?.uid;
+    if (!uid) return;
+    getDocs(query(collection(db, "lists"), where("userId", "==", uid)))
+      .then((snap) => setLists(snap.docs.map((d) => ({ id: d.id, ...d.data() }))));
+  }, [visible]);
+
+  const toggle = async (list) => {
+    setSaving(list.id);
+    const already = (list.showIds ?? []).includes(showId);
+    await updateDoc(doc(db, "lists", list.id), {
+      showIds: already
+        ? list.showIds.filter((id) => id !== showId)
+        : [...(list.showIds ?? []), showId],
+      updatedAt: serverTimestamp(),
+    });
+    setLists((prev) =>
+      prev.map((l) =>
+        l.id === list.id
+          ? { ...l, showIds: already ? l.showIds.filter((id) => id !== showId) : [...(l.showIds ?? []), showId] }
+          : l
+      )
+    );
+    setSaving(null);
+  };
+
+  return (
+    <Modal transparent visible={visible} animationType="slide" onRequestClose={onClose}>
+      <TouchableOpacity style={styles.modalBackdrop} onPress={onClose} activeOpacity={1}>
+        <View style={styles.pickerSheet}>
+          <Text style={styles.pickerTitle}>Add to List</Text>
+          {lists.length === 0 && (
+            <Text style={{ color: C.muted, textAlign: "center", padding: 20 }}>
+              No lists yet — create one in your profile
+            </Text>
+          )}
+          {lists.map((list) => {
+            const added = (list.showIds ?? []).includes(showId);
+            return (
+              <TouchableOpacity
+                key={list.id}
+                style={[styles.pickerRow, added && styles.pickerRowActive]}
+                onPress={() => toggle(list)}
+                disabled={saving === list.id}
+              >
+                <Text style={[styles.pickerRowText, added && styles.pickerRowTextActive]}>
+                  {list.title}
+                </Text>
+                <Text style={{ color: added ? C.accent : C.muted, fontSize: 18 }}>
+                  {saving === list.id ? "…" : added ? "✓" : "+"}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </TouchableOpacity>
+    </Modal>
+  );
+};
+
 // ─── Main ShowCard screen ─────────────────────────────────────────────────────
 
 const ShowCard = ({ route, navigation }) => {
@@ -620,13 +685,13 @@ const ShowCard = ({ route, navigation }) => {
               {myRating > 0 ? `${myRating}★` : "Rate"}
             </Text>
           </TouchableOpacity>
-
+          {/* Add to List */}
           <TouchableOpacity
-            style={[styles.actionBtn, liked && { backgroundColor: C.accentSoft, borderColor: C.accent + "60" }]}
-            onPress={handleToggleLiked}
+            style={styles.actionBtn}
+            onPress={() => setShowListModal(true)}
           >
-            <Text style={[styles.actionIcon, { color: liked ? C.accent : C.subtext }]}>👍</Text>
-            <Text style={[styles.actionLabel, liked && { color: C.accent }]}>Like</Text>
+            <Text style={styles.actionIcon}>＋</Text>
+            <Text style={styles.actionLabel}>Lists</Text>
           </TouchableOpacity>
         </View>
 
@@ -916,7 +981,11 @@ const ShowCard = ({ route, navigation }) => {
         }}
         showTitle={show.name}
       />
-
+      <AddToListModal
+        visible={showListModal}
+        onClose={() => setShowListModal(false)}
+        showId={showId}
+      />
     </SafeAreaView>
   );
 };

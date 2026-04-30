@@ -13,6 +13,8 @@ import {
   Modal,
   FlatList,
 } from "react-native";
+import { collection, getDocs, addDoc, serverTimestamp, query, where } from "firebase/firestore";
+import { db, auth } from "../../config/firebase";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -43,91 +45,6 @@ const FILTER_OPTIONS = [
   { key: "firstCreated",   label: "First Created" },
   { key: "lastCreated",    label: "Last Created" },
   { key: "popularity",     label: "Most Popular" },
-];
-
-// ─── Mock Data ────────────────────────────────────────────────────────────────
-// Replace with real Firebase reads once auth is wired up.
-//
-// HOW TO CREATE WATCHLIST ON SIGNUP (Firebase):
-// In your signup function (Auth.jsx or Signup.jsx), after createUserWithEmailAndPassword
-// succeeds, immediately write a default Watchlist doc:
-//
-//   import { doc, setDoc, serverTimestamp } from "firebase/firestore";
-//
-//   await setDoc(doc(db, "users", user.uid, "lists", "watchlist"), {
-//     id: "watchlist",
-//     title: "Watchlist",
-//     isWatchlist: true,       // flag so we always pin it to top
-//     description: "Shows I want to watch",
-//     showIds: [],
-//     createdAt: serverTimestamp(),
-//     updatedAt: serverTimestamp(),
-//     publishedAt: null,
-//     isPublic: false,
-//     likes: 0,
-//   });
-
-const MOCK_LISTS = [
-  {
-    id: "watchlist",
-    title: "Watchlist",
-    isWatchlist: true,
-    description: "Shows I want to watch",
-    showIds: [169, 82, 1621, 526],
-    createdAt: new Date("2024-01-01"),
-    updatedAt: new Date("2024-04-10"),
-    publishedAt: null,
-    isPublic: false,
-    likes: 0,
-  },
-  {
-    id: "l1",
-    title: "All-Time Favourites",
-    isWatchlist: false,
-    description: "Shows I keep coming back to no matter what.",
-    showIds: [169, 132, 118, 4],
-    createdAt: new Date("2024-01-15"),
-    updatedAt: new Date("2024-04-08"),
-    publishedAt: new Date("2024-01-20"),
-    isPublic: true,
-    likes: 142,
-  },
-  {
-    id: "l2",
-    title: "Sci-Fi Deep Cuts",
-    isWatchlist: false,
-    description: "Under-the-radar genre TV that takes itself seriously.",
-    showIds: [41734, 54782, 180, 155],
-    createdAt: new Date("2024-02-03"),
-    updatedAt: new Date("2024-03-22"),
-    publishedAt: new Date("2024-02-10"),
-    isPublic: true,
-    likes: 87,
-  },
-  {
-    id: "l3",
-    title: "Comfort Watches",
-    isWatchlist: false,
-    description: "Put these on when you just want to feel good.",
-    showIds: [66, 526, 216],
-    createdAt: new Date("2024-02-20"),
-    updatedAt: new Date("2024-02-20"),
-    publishedAt: null,
-    isPublic: false,
-    likes: 0,
-  },
-  {
-    id: "l4",
-    title: "Crime & Thriller Picks",
-    isWatchlist: false,
-    description: "The best cat-and-mouse television has to offer.",
-    showIds: [169, 2993, 526, 132],
-    createdAt: new Date("2024-03-01"),
-    updatedAt: new Date("2024-04-01"),
-    publishedAt: new Date("2024-03-05"),
-    isPublic: true,
-    likes: 203,
-  },
 ];
 
 // ─── Sorting logic ────────────────────────────────────────────────────────────
@@ -395,12 +312,26 @@ const Lists = ({ navigation }) => {
   const [activeFilter, setActiveFilter] = useState("lastUpdated");
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [lists, setLists] = useState(MOCK_LISTS);
+  const [lists, setLists] = useState([]);
 
   // ── Fetch posters for all show IDs across all lists ──
-  const fetchPosters = useCallback(async () => {
+  const fetchAll = useCallback(async () => {
+    const uid = auth.currentUser?.uid;
+    if (!uid) return;
     try {
-      const allIds = [...new Set(lists.flatMap((l) => l.showIds))];
+      const snap = await getDocs(
+        query(collection(db, "lists"), where("userId", "==", uid))
+      );
+      const fetched = snap.docs.map((d) => ({
+        id: d.id,
+        ...d.data(),
+        createdAt: d.data().createdAt?.toDate() ?? new Date(),
+        updatedAt: d.data().updatedAt?.toDate() ?? new Date(),
+        publishedAt: d.data().publishedAt?.toDate() ?? null,
+      }));
+      setLists(fetched);
+
+      const allIds = [...new Set(fetched.flatMap((l) => l.showIds ?? []))];
       const results = await Promise.allSettled(
         allIds.map((id) =>
           fetch(`${TVMAZE}/shows/${id}`)
@@ -410,19 +341,17 @@ const Lists = ({ navigation }) => {
       );
       const map = {};
       results.forEach((r) => {
-        if (r.status === "fulfilled" && r.value.uri) {
-          map[r.value.id] = r.value.uri;
-        }
+        if (r.status === "fulfilled" && r.value.uri) map[r.value.id] = r.value.uri;
       });
       setPosterMap(map);
     } catch (err) {
-      console.error("[Lists] poster fetch error:", err);
+      console.error("[Lists] fetch error:", err);
     } finally {
       setLoading(false);
     }
-  }, [lists]);
+  }, []);
 
-  useEffect(() => { fetchPosters(); }, [fetchPosters]);
+  useEffect(() => { fetchAll(); }, [fetchAll]);
 
   const getPostersForList = (list) =>
     list.showIds.map((id) => posterMap[id]).filter(Boolean);
@@ -434,21 +363,27 @@ const Lists = ({ navigation }) => {
   const activeFilterLabel =
     FILTER_OPTIONS.find((o) => o.key === activeFilter)?.label ?? "Sort";
 
-  const handleCreate = (newList) => {
-    // Add to local state — replace this with a Firebase refetch in production
-    setLists((prev) => [
-      ...prev,
-      {
-        ...newList,
-        id: `l${Date.now()}`,
+  const handleCreate = async (newList) => {
+    const uid = auth.currentUser?.uid;
+    console.log("Creating list for uid:", uid, newList);
+    if (!uid) return;
+    try {
+      await addDoc(collection(db, "lists"), {
+        userId: uid,
+        title: newList.title.trim(),
+        description: newList.description?.trim() ?? "",
+        isPublic: newList.isPublic,
         isWatchlist: false,
         showIds: [],
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        publishedAt: newList.isPublic ? new Date() : null,
         likes: 0,
-      },
-    ]);
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        publishedAt: newList.isPublic ? serverTimestamp() : null,
+      });
+      fetchAll();
+    } catch (err) {
+      console.error("[Lists] create error:", err);
+    }
   };
 
   if (loading) {
@@ -500,10 +435,7 @@ const Lists = ({ navigation }) => {
             <ListCard
               list={watchlist}
               posterUris={getPostersForList(watchlist)}
-              onPress={() => {
-                // TODO: navigation.navigate("ListDetail", { listId: watchlist.id })
-                console.log("Navigate to ListDetail:", watchlist.id);
-              }}
+              onPress={() => navigation.navigate("ListDetail", { listId: watchlist.id, listTitle: watchlist.title })}
               onPosterPress={(showId) => {
                 navigation.navigate("ShowCard", { showId });
               }}
@@ -518,10 +450,7 @@ const Lists = ({ navigation }) => {
             key={list.id}
             list={list}
             posterUris={getPostersForList(list)}
-            onPress={() => {
-              // TODO: navigation.navigate("ListDetail", { listId: list.id })
-              console.log("Navigate to ListDetail:", list.id);
-            }}
+            onPress={() => navigation.navigate("ListDetail", { listId: list.id, listTitle: list.title })}
             onPosterPress={(showId) => {
               navigation.navigate("ShowCard", { showId });
             }}
