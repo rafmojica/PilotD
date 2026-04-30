@@ -14,7 +14,7 @@ import {
   Dimensions,
 } from "react-native";
 import Stars from "../components/Stars";
-import {doc, getDoc, runTransaction, collection, addDoc, setDoc, getDocs, query, where, limit, serverTimestamp } from "firebase/firestore";
+import {doc, getDoc, runTransaction, collection, addDoc, setDoc, getDocs, query, where, limit, serverTimestamp, updateDoc } from "firebase/firestore";
 import {db, auth } from "../config/firebase";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -288,6 +288,71 @@ const RateModal = ({ visible, onClose, currentRating, onRate, showTitle }) => {
   );
 };
 
+const AddToListModal = ({ visible, onClose, showId }) => {
+  const [lists, setLists] = useState([]);
+  const [saving, setSaving] = useState(null);
+
+  useEffect(() => {
+    if (!visible) return;
+    const uid = auth.currentUser?.uid;
+    if (!uid) return;
+    getDocs(query(collection(db, "lists"), where("userId", "==", uid)))
+      .then((snap) => setLists(snap.docs.map((d) => ({ id: d.id, ...d.data() }))));
+  }, [visible]);
+
+  const toggle = async (list) => {
+    setSaving(list.id);
+    const already = (list.showIds ?? []).includes(showId);
+    await updateDoc(doc(db, "lists", list.id), {
+      showIds: already
+        ? list.showIds.filter((id) => id !== showId)
+        : [...(list.showIds ?? []), showId],
+      updatedAt: serverTimestamp(),
+    });
+    setLists((prev) =>
+      prev.map((l) =>
+        l.id === list.id
+          ? { ...l, showIds: already ? l.showIds.filter((id) => id !== showId) : [...(l.showIds ?? []), showId] }
+          : l
+      )
+    );
+    setSaving(null);
+  };
+
+  return (
+    <Modal transparent visible={visible} animationType="slide" onRequestClose={onClose}>
+      <TouchableOpacity style={styles.modalBackdrop} onPress={onClose} activeOpacity={1}>
+        <View style={styles.pickerSheet}>
+          <Text style={styles.pickerTitle}>Add to List</Text>
+          {lists.length === 0 && (
+            <Text style={{ color: C.muted, textAlign: "center", padding: 20 }}>
+              No lists yet — create one in your profile
+            </Text>
+          )}
+          {lists.map((list) => {
+            const added = (list.showIds ?? []).includes(showId);
+            return (
+              <TouchableOpacity
+                key={list.id}
+                style={[styles.pickerRow, added && styles.pickerRowActive]}
+                onPress={() => toggle(list)}
+                disabled={saving === list.id}
+              >
+                <Text style={[styles.pickerRowText, added && styles.pickerRowTextActive]}>
+                  {list.title}
+                </Text>
+                <Text style={{ color: added ? C.accent : C.muted, fontSize: 18 }}>
+                  {saving === list.id ? "…" : added ? "✓" : "+"}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </TouchableOpacity>
+    </Modal>
+  );
+};
+
 // ─── Main ShowCard screen ─────────────────────────────────────────────────────
 // Usage: <ShowCard route={{ params: { showId: 169 } }} navigation={navigation} />
 // The showId comes from navigation.navigate("ShowCard", { showId: 169 })
@@ -315,6 +380,7 @@ const ShowCard = ({ route, navigation }) => {
   const [liked, setLiked] = useState(false);         // liked (Hearted)
   const [reviewText, setReviewText] = useState("");
   const [expandDescription, setExpandDescription] = useState(false);
+  const [showListModal, setShowListModal] = useState(false);
 
   // ── Fetch all show data ──
   const fetchShowData = useCallback(async () => {
@@ -555,6 +621,14 @@ const ShowCard = ({ route, navigation }) => {
             <Text style={[styles.actionLabel, { color: "#fff" }]}>
               {myRating > 0 ? `${myRating}★` : "Rate"}
             </Text>
+          </TouchableOpacity>
+          {/* Add to List */}
+          <TouchableOpacity
+            style={styles.actionBtn}
+            onPress={() => setShowListModal(true)}
+          >
+            <Text style={styles.actionIcon}>＋</Text>
+            <Text style={styles.actionLabel}>Lists</Text>
           </TouchableOpacity>
         </View>
 
@@ -808,6 +882,11 @@ const ShowCard = ({ route, navigation }) => {
           await writeDiaryEntry(showId, show.name, newRating, null, liked);
         }}
         showTitle={show.name}
+      />
+      <AddToListModal
+        visible={showListModal}
+        onClose={() => setShowListModal(false)}
+        showId={showId}
       />
     </SafeAreaView>
   );
